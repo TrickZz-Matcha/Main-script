@@ -494,7 +494,7 @@ function UILib:Step()
 
     -- ── OUTER WINDOW ──
     self:_RRect('menu_bg', mx, my, mw, mh, t.bg, 1, self._corner_r)
-    self:_RRectOutline('menu_bor', mx, my, mw, mh, t.divider, 2, self._corner_r)
+    self:_RRectOutline('menu_bg_bor', mx, my, mw, mh, t.divider, 20, self._corner_r)
 
     -- ── TITLE BAR (top strip, draggable) ──
     local tbH = 36
@@ -518,24 +518,24 @@ function UILib:Step()
     -- ── SIDEBAR PANEL ──
     local sbX, sbY = mx, my+tbH
     local sbH = mh-tbH
-    self:_RRect('menu_sidebar', sbX, sbY, sw, sbH, t.sidebar, 3, 0)
+    self:_RRect('menu_sidebar', sbX, sbY, sw, sbH, t.sidebar, 16, 0)
     -- right edge divider
-    self:_Line('menu_sdiv', sbX+sw, sbY, sbX+sw, sbY+sbH, t.divider, 4)
+    self:_Line('menu_sdiv', sbX+sw, sbY, sbX+sw, sbY+sbH, t.divider, 17)
 
     -- search bar
     local srchX, srchY = sbX+pad, sbY+pad
     local srchW, srchH = sw-pad*2, 28
     local isSearchFocused = self._input_ctx == 'search'
-    self:_RRect('menu_search_bg', srchX, srchY, srchW, srchH, t.search_bg, 5, 6)
+    self:_RRect('menu_search_bg', srchX, srchY, srchW, srchH, t.search_bg, 17, 6)
     if isSearchFocused then
-        self:_RRectOutline('menu_search_bor', srchX, srchY, srchW, srchH, t.accent, 6, 6)
+        self:_RRectOutline('menu_search_bor_o', srchX, srchY, srchW, srchH, t.accent, 18, 6)
     else
-        self:_RRectOutline('menu_search_bor', srchX, srchY, srchW, srchH, t.divider, 6, 6)
+        self:_RRectOutline('menu_search_bor_o', srchX, srchY, srchW, srchH, t.divider, 18, 6)
     end
     local srchDisplay = self._search_query=='' and (isSearchFocused and '' or 'Search...') or self._search_query
     local srchCol = self._search_query=='' and t.subtext or t.text
     if isSearchFocused then srchDisplay=self._search_query..(math.floor(os.clock()*2)%2==0 and '|' or ' ') end
-    self:_Text('menu_search_txt', srchX+8, srchY+8, srchDisplay, srchCol, 7, 12, false, false)
+    self:_Text('menu_search_tx', srchX+8, srchY+8, srchDisplay, srchCol, 7, 19, false, false)
     -- search interaction
     if click then
         if self:_InBounds(srchX,srchY,srchW,srchH) then self._input_ctx='search'; click=false
@@ -572,13 +572,13 @@ function UILib:Step()
 
         -- highlight bar on active
         if isOpen then
-            self:_RRect('nav_'..tabName..'_bg', niX, niY, niW, niH, navBg, 5, 5)
-            self:_RRect('nav_'..tabName..'_bar', niX, niY+4, 3, niH-8, t.accent, 6, 1)
+            self:_RRect('nav_'..tabName..'_bg', niX, niY, niW, niH, navBg, 17, 5)
+            self:_RRect('nav_'..tabName..'_bar', niX, niY+4, 3, niH-8, t.accent, 18, 1)
         else
-            self:_RRect('nav_'..tabName..'_bg', niX, niY, niW, niH, navBg, 5, 5)
+            self:_RRect('nav_'..tabName..'_bg', niX, niY, niW, niH, navBg, 17, 5)
             self:_Hide('nav_'..tabName..'_bar')
         end
-        self:_Text('nav_'..tabName..'_txt', niX+12, niY+8, tabName, navTxt, 7, 12, false, false)
+        self:_Text('nav_'..tabName..'_txt', niX+12, niY+8, tabName, navTxt, 19, 12, false, false)
 
         if click and self:_InBounds(niX,niY,niW,niH) then
             self._open_tab=tabName; self._tab_change_at=os.clock()
@@ -590,12 +590,14 @@ function UILib:Step()
     -- profile footer
     local pfH = 40
     local pfY = sbY+sbH-pfH
-    self:_Line('menu_pfdiv', sbX+6, pfY, sbX+sw-6, pfY, t.divider, 5)
+    self:_Line('menu_pfdiv2', sbX+6, pfY, sbX+sw-6, pfY, t.divider, 17)
     -- avatar circle
-    self:_RRect('menu_pf_av', sbX+pad, pfY+8, 24, 24, t.accent_dim, 5, 12)
-    self:_Text('menu_pf_av_txt', sbX+pad+12, pfY+14, self.username:sub(1,1):upper(), t.accent, 6, 11, true, false)
-    self:_Text('menu_pf_name',   sbX+pad+28, pfY+9,  self.username, t.text, 6, 11, false, false)
-    self:_Text('menu_pf_sub',    sbX+pad+28, pfY+22, self.subtext,  t.subtext, 6, 10, false, false)
+    -- profile
+    self:_RRect('menu_pf_cover', sbX, pfY, sw, pfH+4, t.sidebar, 16, 0)
+    self:_RRect('menu_pf_av2', sbX+pad, pfY+8, 24, 24, t.accent_dim, 17, 12)
+    self:_Text('menu_pf_avt', sbX+pad+12, pfY+14, self.username:sub(1,1):upper(), t.accent, 6, 11, true, false)
+    self:_Text('menu_pfnm',   sbX+pad+28, pfY+9,  self.username, t.text, 19, 19, false, false)
+    self:_Text('menu_pfsb',    sbX+pad+28, pfY+22, self.subtext,  t.subtext, 19, 19, false, false)
 
     -- ── CONTENT AREA ──
     local cX = mx+sw+1
@@ -603,11 +605,15 @@ function UILib:Step()
     local cW = mw-sw-1
     local cH = mh-tbH
     self:_RRect('menu_content', cX, cY, cW, cH, t.content, 3, 0)
+    -- bottom edge cover
+    self:_RRect('menu_bedge', cX, cY+cH-2, cW, 4, t.bg, 15, 0)
 
     -- content header
     local chH = 36
-    self:_Text('menu_chead', cX+pad+4, cY+10, self._open_tab or '', t.text, 5, 14, false, false)
-    self:_Line('menu_chdiv', cX+6, cY+chH, cX+cW-6, cY+chH, t.divider, 5)
+    -- header cover (prevents content bleeding over header)
+    self:_RRect('menu_hcover', cX, cY, cW, chH, t.content, 15, 0)
+    self:_Text('menu_chead', cX+pad+4, cY+10, self._open_tab or '', t.text, 16, 14, false, false)
+    self:_Line('menu_chdiv', cX+6, cY+chH, cX+cW-6, cY+chH, t.divider, 16)
 
     -- scroll (mouse wheel approximated via page keys)
     if self:_InBounds(cX,cY,cW,cH) then
@@ -616,12 +622,17 @@ function UILib:Step()
     end
     self._scroll_offset = lerp(self._scroll_offset, self._scroll_target, 0.2)
 
+    -- hide ALL section drawings every frame, then only show the open tab
+    self:_HidePrefix('sec_')
+
     -- render widgets for open tab
     local tabData = self._open_tab and self._tree[self._open_tab]
+    local cYmin = cY+chH      -- top clip boundary
+    local cYmax = cY+cH       -- bottom clip boundary
     if tabData then
         local wY = cY+chH+pad - math.floor(self._scroll_offset)
         local wX = cX+pad
-        local wW = cW-pad*2
+        local wW = cW-pad*2-2
 
         for _, sname in ipairs(tabData._sec_order or {}) do
             local sec = tabData._items[sname]
@@ -629,8 +640,11 @@ function UILib:Step()
 
             -- section label
             local slid = 'sec_'..self._open_tab..'_'..sname
-            self:_Text(slid..'_lbl', wX+2, wY+2, sname:upper(), t.subtext, 6, 10, false, false)
-            wY = wY+18
+            -- section label (clipped)
+            if wY >= cYmin-18 and wY <= cYmax then
+                self:_Text(slid..'_lbl', wX+4, wY+4, sname:upper(), t.subtext, 6, 10, false, false)
+            end
+            wY = wY+20
 
             for wi, widget in ipairs(sec._widgets) do
                 local wid = slid..'_w'..wi
@@ -649,8 +663,16 @@ function UILib:Step()
                            or wType=='colorpicker' and 36
                            or 36
 
+                -- Y clip: hide widget if outside content bounds
+                local inView = (wY + itemH > cYmin) and (wY < cYmax)
+                if not inView then
+                    self:_HidePrefix(wid)
+                    wY = wY + itemH + 4
+                    continue
+                end
+
                 -- card background
-                local isHover = self:_InBounds(wX, wY, wW, itemH)
+                local isHover = self:_InBounds(wX, wY, wW, itemH) and self:_InBounds(cX, cYmin, cW, cH-chH)
                 local cardCol = isHover and t.card_hover or t.card
                 self:_RRect(wid..'_card', wX, wY, wW, itemH, cardCol, 5, 6)
 
