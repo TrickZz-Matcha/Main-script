@@ -568,14 +568,17 @@ function UILib:Step()
         draw('cp_hdot','rect',C.white,35,Vector2.new(pX+cp.h*pW-3,hY),Vector2.new(6,hH),true)
         local nc=Color3.fromHSV(cp.h,cp.s,cp.v)
         draw('cp_sw','rect',nc,34,Vector2.new(cpX+8,cpY+cH2-14),Vector2.new(cW2-16,10),true)
-        if cp.cb then cp.cb(nc) end
         local mp=getMouse()
         if mouseHeld then
+            local changed = false
             if inBounds(Vector2.new(pX,pY),Vector2.new(pW,palH)) then
-                cp.s=clamp((mp.X-pX)/pW,0,1); cp.v=1-clamp((mp.Y-pY)/palH,0,1)
+                cp.s=clamp((mp.X-pX)/pW,0,1); cp.v=1-clamp((mp.Y-pY)/palH,0,1); changed=true
             end
             if inBounds(Vector2.new(pX,hY),Vector2.new(pW,hH)) then
-                cp.h=clamp((mp.X-pX)/pW,0,1)
+                cp.h=clamp((mp.X-pX)/pW,0,1); changed=true
+            end
+            if changed and cp.cb then
+                cp.cb(Color3.fromHSV(cp.h,cp.s,cp.v))
             end
         end
         if clickFrame and not inBounds(Vector2.new(cpX,cpY),Vector2.new(cW2,cH2)) then
