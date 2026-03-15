@@ -1,5 +1,5 @@
 --[[
-    matcha library — rewritten based on proven working drawing pattern
+    matcha library
 ]]
 
 UILib = {
@@ -14,13 +14,16 @@ UILib = {
     _tab_change_at = 0,
     _notifications = {},
     _notifications_spawned = 0,
-    _inputs      = {['m1']={id=0x01,held=false,click=false},['m2']={id=0x02,held=false,click=false},['f1']={id=0x70,held=false,click=false},['f2']={id=0x71,held=false,click=false},['f3']={id=0x72,held=false,click=false},['lshift']={id=0xA0,held=false,click=false},['rshift']={id=0xA1,held=false,click=false},['up']={id=0x26,held=false,click=false},['down']={id=0x28,held=false,click=false},['unbound']={id=0x08,held=false,click=false},['enter']={id=0x0D,held=false,click=false},['space']={id=0x20,held=false,click=false},['a']={id=0x41,held=false,click=false},['b']={id=0x42,held=false,click=false},['c']={id=0x43,held=false,click=false},['d']={id=0x44,held=false,click=false},['e']={id=0x45,held=false,click=false},['f']={id=0x46,held=false,click=false},['g']={id=0x47,held=false,click=false},['h']={id=0x48,held=false,click=false},['i']={id=0x49,held=false,click=false},['j']={id=0x4A,held=false,click=false},['k']={id=0x4B,held=false,click=false},['l']={id=0x4C,held=false,click=false},['m']={id=0x4D,held=false,click=false},['n']={id=0x4E,held=false,click=false},['o']={id=0x4F,held=false,click=false},['p']={id=0x50,held=false,click=false},['q']={id=0x51,held=false,click=false},['r']={id=0x52,held=false,click=false},['s']={id=0x53,held=false,click=false},['t']={id=0x54,held=false,click=false},['u']={id=0x55,held=false,click=false},['v']={id=0x56,held=false,click=false},['w']={id=0x57,held=false,click=false},['x']={id=0x58,held=false,click=false},['y']={id=0x59,held=false,click=false},['z']={id=0x5A,held=false,click=false},['0']={id=0x30,held=false,click=false},['1']={id=0x31,held=false,click=false},['2']={id=0x32,held=false,click=false},['3']={id=0x33,held=false,click=false},['4']={id=0x34,held=false,click=false},['5']={id=0x35,held=false,click=false},['6']={id=0x36,held=false,click=false},['7']={id=0x37,held=false,click=false},['8']={id=0x38,held=false,click=false},['9']={id=0x39,held=false,click=false},['minus']={id=0xBD,held=false,click=false},['period']={id=0xBE,held=false,click=false},['comma']={id=0xBC,held=false,click=false}},
+    _inputs      = {['m1']={id=0x01,held=false,click=false},['m2']={id=0x02,held=false,click=false},['f1']={id=0x70,held=false,click=false},['lshift']={id=0xA0,held=false,click=false},['rshift']={id=0xA1,held=false,click=false},['unbound']={id=0x08,held=false,click=false},['enter']={id=0x0D,held=false,click=false},['space']={id=0x20,held=false,click=false},['a']={id=0x41,held=false,click=false},['b']={id=0x42,held=false,click=false},['c']={id=0x43,held=false,click=false},['d']={id=0x44,held=false,click=false},['e']={id=0x45,held=false,click=false},['f']={id=0x46,held=false,click=false},['g']={id=0x47,held=false,click=false},['h']={id=0x48,held=false,click=false},['i']={id=0x49,held=false,click=false},['j']={id=0x4A,held=false,click=false},['k']={id=0x4B,held=false,click=false},['l']={id=0x4C,held=false,click=false},['m']={id=0x4D,held=false,click=false},['n']={id=0x4E,held=false,click=false},['o']={id=0x4F,held=false,click=false},['p']={id=0x50,held=false,click=false},['q']={id=0x51,held=false,click=false},['r']={id=0x52,held=false,click=false},['s']={id=0x53,held=false,click=false},['t']={id=0x54,held=false,click=false},['u']={id=0x55,held=false,click=false},['v']={id=0x56,held=false,click=false},['w']={id=0x57,held=false,click=false},['x']={id=0x58,held=false,click=false},['y']={id=0x59,held=false,click=false},['z']={id=0x5A,held=false,click=false},['0']={id=0x30,held=false,click=false},['1']={id=0x31,held=false,click=false},['2']={id=0x32,held=false,click=false},['3']={id=0x33,held=false,click=false},['4']={id=0x34,held=false,click=false},['5']={id=0x35,held=false,click=false},['6']={id=0x36,held=false,click=false},['7']={id=0x37,held=false,click=false},['8']={id=0x38,held=false,click=false},['9']={id=0x39,held=false,click=false},['minus']={id=0xBD,held=false,click=false},['period']={id=0xBE,held=false,click=false},['comma']={id=0xBC,held=false,click=false}},
     _slider_drag = nil,
     _menu_drag   = nil,
     _input_ctx   = nil,
     _menu_key    = 'f1',
-    _active_dropdown   = nil,
+    _active_dropdown    = nil,
     _active_colorpicker = nil,
+    _scroll      = 0,
+    _scrollT     = 0,
+    _scroll_delta = 0,   -- set externally by UIS wheel event
 
     title    = 'matcha',
     subtitle = 'beta',
@@ -55,15 +58,6 @@ UILib = {
 local function clamp(x,a,b) return x<a and a or x>b and b or x end
 local function lerp(a,b,t)  return a+(b-a)*t end
 
-local function hsvToRgb(h,s,v)
-    local r,g,b
-    local i=math.floor(h*6); local f=h*6-i; local p=v*(1-s); local q=v*(1-f*s); local t=v*(1-(1-f)*s)
-    i=i%6
-    if i==0 then r,g,b=v,t,p elseif i==1 then r,g,b=q,v,p elseif i==2 then r,g,b=p,v,t
-    elseif i==3 then r,g,b=p,q,v elseif i==4 then r,g,b=t,p,v else r,g,b=v,p,q end
-    return Color3.new(r,g,b)
-end
-
 local function rgbToHsv(r,g,b)
     local max=math.max(r,g,b); local min=math.min(r,g,b); local d=max-min
     local h,s,v=0, max>0 and d/max or 0, max
@@ -89,18 +83,14 @@ local function draw(id, dtype, col, zi, ...)
         if not o then D[id]=Drawing.new('Text'); o=D[id] end
         local pos,text,outline,center,sz,font = ...
         o.Position=pos; o.Text=tostring(text or '')
-        o.Outline=outline or false
-        o.Center=center or false
-        o.Size=sz or UILib._font_size
-        o.Font=font or UILib._font_face
+        o.Outline=outline or false; o.Center=center or false
+        o.Size=sz or UILib._font_size; o.Font=font or UILib._font_face
     elseif dtype == 'line' then
         if not o then D[id]=Drawing.new('Line'); o=D[id] end
         local from,to,thickness = ...
         o.From=from; o.To=to; o.Thickness=thickness or 1
     end
-    if o then
-        o.Color=col; o.ZIndex=zi; o.Visible=true
-    end
+    if o then o.Color=col; o.ZIndex=zi; o.Visible=true end
 end
 
 local function undraw(id)
@@ -171,16 +161,13 @@ function UILib:SetMenuTitle(t,s) self.title=t; self.subtitle=s or '' end
 function UILib:SetMenuSize(s)   self.w=s.X or s.x or self.w; self.h=s.Y or s.y or self.h end
 function UILib:GetMenuSize()    return Vector2.new(self.w,self.h) end
 function UILib:SetProfile(u,s)  self.username=u; self.usertext=s or '' end
+function UILib:UpdateFont(f)    self._font_face=f end
 
 function UILib:CenterMenu()
     local ss=getScreenSize()
     if ss.X<100 or ss.Y<100 then self.x=160; self.y=100; return end
     self.x=math.floor(ss.X/2-self.w/2)
     self.y=math.floor(ss.Y/2-self.h/2)
-end
-
-function UILib:UpdateFont(f)
-    self._font_face=f
 end
 
 function UILib:Notification(text,time)
@@ -199,9 +186,7 @@ function UILib:Tab(name)
     self._tree[name]={_sec_order={},_items={}}
     table.insert(self._tab_order,name)
     if not self._open_tab then self._open_tab=name end
-    return {
-        Section=function(_,sname) return UILib:_Section(name,sname) end
-    }
+    return { Section=function(_,sname) return UILib:_Section(name,sname) end }
 end
 
 function UILib:_Section(tab,sname)
@@ -258,7 +243,6 @@ function UILib:Step()
     local C=self.C
     if not C then return end
 
-    -- INPUT (same pattern as catowice library)
     pollInput()
     setrobloxinput(not self._menu_open)
 
@@ -271,23 +255,19 @@ function UILib:Step()
     end
 
     -- NOTIFICATIONS
-    local nBase = Vector2.new(20,20)
-    local nOff  = 0
     for ni=#self._notifications,1,-1 do
         local n=self._notifications[ni]
         local el=os.clock()-n._spawned_at
         local fade=clamp(el<0.3 and el/0.3 or (el>n.time and 1-(el-n.time)/0.4 or 1),0,1)
         if fade>0.01 then
             local nW=math.max(textW(n.text,12)+20,160); local nH=26
-            local nx=nBase.X; local ny=nBase.Y+nOff
-            draw('notif_'..n._id..'_bg', 'rect', C.card, 50, Vector2.new(nx,ny), Vector2.new(nW,nH), true)
-            draw('notif_'..n._id..'_t',  'text', C.text, 51, Vector2.new(nx+8,ny+6), n.text, false, false, 12)
-            local prog=clamp(el/n.time,0,1)
-            draw('notif_'..n._id..'_p',  'rect', C.accent, 52, Vector2.new(nx+2,ny+nH-3), Vector2.new((nW-4)*prog,2), true)
-            setAlpha('notif_'..n._id..'_bg', 1-fade)
-            setAlpha('notif_'..n._id..'_t',  1-fade)
-            setAlpha('notif_'..n._id..'_p',  1-fade)
-            nOff=nOff+nH+4
+            local nx=20; local ny=20+(ni-1)*(nH+4)
+            draw('notif_'..n._id..'_bg','rect',C.card,50,Vector2.new(nx,ny),Vector2.new(nW,nH),true)
+            draw('notif_'..n._id..'_t', 'text',C.text,51,Vector2.new(nx+8,ny+6),n.text,false,false,12)
+            draw('notif_'..n._id..'_p', 'rect',C.accent,52,Vector2.new(nx+2,ny+nH-3),Vector2.new((nW-4)*clamp(el/n.time,0,1),2),true)
+            setAlpha('notif_'..n._id..'_bg',1-fade)
+            setAlpha('notif_'..n._id..'_t', 1-fade)
+            setAlpha('notif_'..n._id..'_p', 1-fade)
         end
         if el>n.time+0.5 then removePrefix('notif_'..n._id..'_'); table.remove(self._notifications,ni) end
     end
@@ -308,60 +288,63 @@ function UILib:Step()
     local sw,pad=self._sw,self._padding
     local tbH=32
 
-    -- BACKGROUND
+    -- BACKGROUND + TITLE
     draw('m_bg',  'rect', C.bg,   1, Vector2.new(x,y),        Vector2.new(w,h),   true)
-    -- TITLE BAR
     draw('m_tb',  'rect', C.side, 2, Vector2.new(x,y),        Vector2.new(w,tbH), true)
-    draw('m_ttl', 'text', C.text, 3, Vector2.new(x+pad+4,y+8), self.title,        false,false,14)
+    draw('m_ttl', 'text', C.text, 3, Vector2.new(x+pad+4,y+8), self.title,         false,false,14)
     local tW=textW(self.title,14)
     draw('m_sub', 'text', C.sub,  3, Vector2.new(x+pad+4+tW+6,y+10), self.subtitle, false,false,11)
-    -- window dots
-    draw('m_dr', 'rect', Color3.fromRGB(255,95,86),  3, Vector2.new(x+w-14,y+11), Vector2.new(10,10), true)
-    draw('m_dy', 'rect', Color3.fromRGB(255,189,46), 3, Vector2.new(x+w-28,y+11), Vector2.new(10,10), true)
-    draw('m_dg', 'rect', Color3.fromRGB(39,201,63),  3, Vector2.new(x+w-42,y+11), Vector2.new(10,10), true)
+    draw('m_dr','rect',Color3.fromRGB(255,95,86), 3,Vector2.new(x+w-14,y+11),Vector2.new(10,10),true)
+    draw('m_dy','rect',Color3.fromRGB(255,189,46),3,Vector2.new(x+w-28,y+11),Vector2.new(10,10),true)
+    draw('m_dg','rect',Color3.fromRGB(39,201,63), 3,Vector2.new(x+w-42,y+11),Vector2.new(10,10),true)
 
-    -- title bar drag
     if clickFrame and inBounds(Vector2.new(x,y),Vector2.new(w-50,tbH)) and not self._menu_drag then
         local mp=getMouse(); self._menu_drag=Vector2.new(mp.X-x,mp.Y-y); clickFrame=false
     end
 
     -- SIDEBAR
     local sbX,sbY,sbH=x,y+tbH,h-tbH
-    draw('m_sb',   'rect', C.side, 2, Vector2.new(sbX,sbY),       Vector2.new(sw,sbH),  true)
-    draw('m_sdiv', 'line', C.div,  3, Vector2.new(sbX+sw,sbY),    Vector2.new(sbX+sw,sbY+sbH), 1)
+    draw('m_sb',  'rect',C.side,2,Vector2.new(sbX,sbY),      Vector2.new(sw,sbH),true)
+    draw('m_sdiv','line',C.div, 3,Vector2.new(sbX+sw,sbY),   Vector2.new(sbX+sw,sbY+sbH),1)
 
-    -- NAV TABS
+    -- NAV
     local navY=sbY+pad
     for _,tname in ipairs(self._tab_order) do
         local isOpen=self._open_tab==tname
-        draw('nav_'..tname..'_bg', 'rect', isOpen and C.navhi or C.side, 4, Vector2.new(sbX+pad,navY), Vector2.new(sw-pad*2,28), true)
-        if isOpen then
-            draw('nav_'..tname..'_bar', 'rect', C.accent, 5, Vector2.new(sbX+pad,navY+4), Vector2.new(3,20), true)
-        else
-            undraw('nav_'..tname..'_bar')
-        end
-        draw('nav_'..tname..'_t', 'text', isOpen and C.text or C.sub, 5, Vector2.new(sbX+pad+10,navY+8), tname, false,false,12)
+        draw('nav_'..tname..'_bg','rect',isOpen and C.navhi or C.side,4,Vector2.new(sbX+pad,navY),Vector2.new(sw-pad*2,28),true)
+        if isOpen then draw('nav_'..tname..'_bar','rect',C.accent,5,Vector2.new(sbX+pad,navY+4),Vector2.new(3,20),true)
+        else undraw('nav_'..tname..'_bar') end
+        draw('nav_'..tname..'_t','text',isOpen and C.text or C.sub,5,Vector2.new(sbX+pad+10,navY+8),tname,false,false,12)
         if clickFrame and inBounds(Vector2.new(sbX+pad,navY),Vector2.new(sw-pad*2,28)) and not isOpen then
-            self._open_tab=tname; self._tab_change_at=os.clock(); clickFrame=false
+            self._open_tab=tname; self._tab_change_at=os.clock()
+            self._scroll=0; self._scrollT=0
+            clickFrame=false
         end
         navY=navY+28+3
     end
 
     -- PROFILE
     local pfY=sbY+sbH-38
-    draw('m_pfbg',  'rect', C.side,  2, Vector2.new(sbX,pfY),       Vector2.new(sw,38), true)
-    draw('m_pfav',  'rect', C.accdim,4, Vector2.new(sbX+pad,pfY+7), Vector2.new(24,24), true)
-    draw('m_pfn',   'text', C.accent,5, Vector2.new(sbX+pad+12,pfY+13), (self.username or 'P'):sub(1,1):upper(), false,true,11)
-    draw('m_pfname','text', C.text,  5, Vector2.new(sbX+pad+28,pfY+8),  self.username or '', false,false,11)
-    draw('m_pfsub', 'text', C.sub,   5, Vector2.new(sbX+pad+28,pfY+20), self.usertext or '', false,false,10)
+    draw('m_pfbg', 'rect',C.side,  2,Vector2.new(sbX,pfY),      Vector2.new(sw,38),true)
+    draw('m_pfav', 'rect',C.accdim,4,Vector2.new(sbX+pad,pfY+7),Vector2.new(24,24),true)
+    draw('m_pfn',  'text',C.accent,5,Vector2.new(sbX+pad+12,pfY+13),(self.username or 'P'):sub(1,1):upper(),false,true,11)
+    draw('m_pfname','text',C.text, 5,Vector2.new(sbX+pad+28,pfY+8), self.username or '',false,false,11)
+    draw('m_pfsub', 'text',C.sub,  5,Vector2.new(sbX+pad+28,pfY+20),self.usertext or '',false,false,10)
 
-    -- CONTENT
+    -- CONTENT AREA
     local cX=x+sw+1; local cY=y+tbH; local cW=w-sw-1; local cH=h-tbH
-    draw('m_ct',    'rect', C.content,2, Vector2.new(cX,cY),  Vector2.new(cW,cH),   true)
+    draw('m_ct',   'rect',C.content,2,Vector2.new(cX,cY),Vector2.new(cW,cH),  true)
     local chH=34
-    draw('m_chbg',  'rect', C.content,3, Vector2.new(cX,cY),  Vector2.new(cW,chH),  true)
-    draw('m_chtxt', 'text', C.text,   4, Vector2.new(cX+pad+4,cY+10), self._open_tab or '', false,false,14)
-    draw('m_chdiv', 'line', C.div,    4, Vector2.new(cX+6,cY+chH), Vector2.new(cX+cW-6,cY+chH), 1)
+    draw('m_chbg', 'rect',C.content,3,Vector2.new(cX,cY),Vector2.new(cW,chH), true)
+    draw('m_chtxt','text',C.text,   4,Vector2.new(cX+pad+4,cY+10),self._open_tab or '',false,false,14)
+    draw('m_chdiv','line',C.div,    4,Vector2.new(cX+6,cY+chH),Vector2.new(cX+cW-6,cY+chH),1)
+
+    -- SCROLL — consume wheel delta set by UIS in main script
+    if self._scroll_delta ~= 0 and inBounds(Vector2.new(cX,cY),Vector2.new(cW,cH)) then
+        self._scrollT = math.max(0, self._scrollT - self._scroll_delta * 40)
+        self._scroll_delta = 0
+    end
+    self._scroll = lerp(self._scroll, self._scrollT, 0.25)
 
     -- WIDGETS
     local tabData=self._open_tab and self._tree[self._open_tab]
@@ -373,9 +356,10 @@ function UILib:Step()
     end
 
     if tabData then
-        local wY=cY+chH+pad
+        local wY = cY+chH+pad - math.floor(self._scroll)
         local wX=cX+pad; local wW=cW-pad*2
         local clipTop=cY+chH; local clipBot=cY+cH
+        local totalH=0  -- track total content height for scroll clamping
 
         for _,sname in ipairs(tabData._sec_order or {}) do
             local sec=tabData._items[sname]
@@ -383,9 +367,9 @@ function UILib:Step()
             local slid='s_'..self._open_tab..'_'..sname
 
             if wY>=clipTop-20 and wY<=clipBot then
-                draw(slid..'_hdr','text',C.sub,10, Vector2.new(wX+2,wY+3), sname:upper(), false,false,10)
+                draw(slid..'_hdr','text',C.sub,10,Vector2.new(wX+2,wY+3),sname:upper(),false,false,10)
             else undraw(slid..'_hdr') end
-            wY=wY+18
+            wY=wY+18; totalH=totalH+18
 
             for wi,w2 in ipairs(sec._widgets) do
                 local wid=slid..'_'..wi
@@ -397,33 +381,33 @@ function UILib:Step()
                        or wType=='textbox' and 38
                        or 34
 
+                totalH=totalH+iH+4
+
                 if wY+iH<=clipTop or wY>=clipBot then
                     undrawPrefix(wid); wY=wY+iH+4; continue
                 end
 
                 local isHov=inBounds(Vector2.new(wX,wY),Vector2.new(wW,iH))
-                draw(wid..'_bg','rect', isHov and C.cardhov or C.card, 10, Vector2.new(wX,wY), Vector2.new(wW,iH), true)
+                draw(wid..'_bg','rect',isHov and C.cardhov or C.card,10,Vector2.new(wX,wY),Vector2.new(wW,iH),true)
 
                 if wType=='toggle' then
                     local hasCP=w2.cp~=nil
                     if hasCP then
-                        local csz=18
-                        local cx2=wX+wW-csz-8; local cy2=wY+(iH-csz)/2
-                        draw(wid..'_cp',    'rect', w2.cp.value, 12, Vector2.new(cx2,cy2), Vector2.new(csz,csz), true)
-                        draw(wid..'_cpbdr', 'rect', C.div,       13, Vector2.new(cx2,cy2), Vector2.new(csz,csz), false)
+                        local csz=18; local cx2=wX+wW-csz-8; local cy2=wY+(iH-csz)/2
+                        draw(wid..'_cp',   'rect',w2.cp.value,12,Vector2.new(cx2,cy2),Vector2.new(csz,csz),true)
+                        draw(wid..'_cpbdr','rect',C.div,       13,Vector2.new(cx2,cy2),Vector2.new(csz,csz),false)
                         if clickFrame and inBounds(Vector2.new(cx2,cy2),Vector2.new(csz,csz)) then
                             local h2,s2,v2=rgbToHsv(w2.cp.value.R,w2.cp.value.G,w2.cp.value.B)
                             self._active_colorpicker={x=cX+cW+4,y=cY,label=w2.cp.label,h=h2,s=s2,v=v2,
-                                cb=function(c) w2.cp.value=c; if w2.cp.cb then w2.cp.cb(c) end end,
-                                _spawned_at=os.clock()}
+                                cb=function(c) w2.cp.value=c; if w2.cp.cb then w2.cp.cb(c) end end,_spawned_at=os.clock()}
                             clickFrame=false
                         end
                     end
                     local tOff=hasCP and (wW-56) or (wW-50)
                     local tX=wX+tOff; local tY2=wY+(iH-18)/2
                     local onC=w2.unsafe and Color3.fromRGB(255,180,0) or C.accent
-                    draw(wid..'_trk','rect', w2.value and onC or C.trkoff, 11, Vector2.new(tX,tY2), Vector2.new(34,18), true)
-                    draw(wid..'_thm','rect', C.white, 12, Vector2.new(w2.value and tX+16 or tX+2, tY2+2), Vector2.new(14,14), true)
+                    draw(wid..'_trk','rect',w2.value and onC or C.trkoff,11,Vector2.new(tX,tY2),Vector2.new(34,18),true)
+                    draw(wid..'_thm','rect',C.white,12,Vector2.new(w2.value and tX+16 or tX+2,tY2+2),Vector2.new(14,14),true)
                     if clickFrame and inBounds(Vector2.new(tX,tY2),Vector2.new(34,18)) then
                         w2.value=not w2.value; if w2.cb then w2.cb(w2.value) end; clickFrame=false
                     end
@@ -463,8 +447,7 @@ function UILib:Step()
                     draw(wid..'_arr','text',C.sub, 12,Vector2.new(dBX+dBW-12,dBY+4),'v',false,false,9)
                     if clickFrame and inBounds(Vector2.new(dBX,dBY),Vector2.new(dBW,dBH)) then
                         self._active_dropdown={x=dBX,y=dBY+dBH,w=dBW,value=w2.value,choices=w2.choices,multi=w2.multi,
-                            cb=function(v) w2.value=v; if w2.cb then w2.cb(v) end end,
-                            _spawned_at=os.clock()}
+                            cb=function(v) w2.value=v; if w2.cb then w2.cb(v) end end,_spawned_at=os.clock()}
                         clickFrame=false
                     end
 
@@ -512,24 +495,27 @@ function UILib:Step()
                     if clickFrame and inBounds(Vector2.new(cx2,cy2),Vector2.new(csz,csz)) then
                         local h2,s2,v2=rgbToHsv(w2.value.R,w2.value.G,w2.value.B)
                         self._active_colorpicker={x=cX+cW+4,y=cY,label=w2.label,h=h2,s=s2,v=v2,
-                            cb=function(c) w2.value=c; if w2.cb then w2.cb(c) end end,
-                            _spawned_at=os.clock()}
+                            cb=function(c) w2.value=c; if w2.cb then w2.cb(c) end end,_spawned_at=os.clock()}
                         clickFrame=false
                     end
                 end
 
                 wY=wY+iH+4
             end
-            wY=wY+8
+            wY=wY+8; totalH=totalH+8
         end
+
+        -- clamp scroll
+        local maxScroll=math.max(0, totalH-(cH-chH-pad*2))
+        self._scrollT=clamp(self._scrollT,0,maxScroll)
     end
 
-    -- DROPDOWN POPUP
+    -- DROPDOWN
     local dd=self._active_dropdown
     if dd then
         local iH=20; local total=#dd.choices*iH+8
-        draw('dd_bg','rect',C.card,30,Vector2.new(dd.x,dd.y),Vector2.new(dd.w,total),true)
-        draw('dd_bdr','rect',C.div,31,Vector2.new(dd.x,dd.y),Vector2.new(dd.w,total),false)
+        draw('dd_bg', 'rect',C.card,30,Vector2.new(dd.x,dd.y),Vector2.new(dd.w,total),true)
+        draw('dd_bdr','rect',C.div, 31,Vector2.new(dd.x,dd.y),Vector2.new(dd.w,total),false)
         local cancel=true
         for i,ch in ipairs(dd.choices) do
             local cy=dd.y+4+(i-1)*iH
@@ -549,50 +535,40 @@ function UILib:Step()
         if clickFrame and cancel then self._active_dropdown=nil; undrawPrefix('dd_'); clickFrame=false end
     else undrawPrefix('dd_') end
 
-    -- COLORPICKER POPUP
+    -- COLORPICKER
     local cp=self._active_colorpicker
     if cp then
         local cW2,cH2=200,195
         local cpX,cpY=cp.x,cp.y
-        -- clamp to screen
-        local ss=getScreenSize()
-        if cpX+cW2>ss.X then cpX=ss.X-cW2-4 end
+        local ss=getScreenSize(); if cpX+cW2>ss.X then cpX=ss.X-cW2-4 end
         draw('cp_bg', 'rect',C.card,30,Vector2.new(cpX,cpY),Vector2.new(cW2,cH2),true)
         draw('cp_bdr','rect',C.div, 31,Vector2.new(cpX,cpY),Vector2.new(cW2,cH2),false)
         draw('cp_lbl','text',C.text,31,Vector2.new(cpX+8,cpY+6),cp.label,false,false,12)
         local pX=cpX+8; local pY=cpY+22; local pW=cW2-16; local pH=cH2-50
         local hH=12; local palH=pH-hH-6
-        -- palette hue base
         draw('cp_pal','rect',Color3.fromHSV(cp.h,1,1),31,Vector2.new(pX,pY),Vector2.new(pW,palH),true)
-        -- white/black overlays (simplified)
         for i=1,8 do
-            local t=(i-1)/7
             draw('cp_w'..i,'rect',Color3.fromRGB(255,255,255),32,Vector2.new(pX+(i-1)*pW/8,pY),Vector2.new(pW/8+1,palH),true)
-            setAlpha('cp_w'..i, t)
+            setAlpha('cp_w'..i,(i-1)/7)
         end
         for i=1,8 do
-            local t=(i-1)/7
             draw('cp_b'..i,'rect',Color3.fromRGB(0,0,0),33,Vector2.new(pX,pY+(i-1)*palH/8),Vector2.new(pW,palH/8+1),true)
-            setAlpha('cp_b'..i, t)
+            setAlpha('cp_b'..i,(i-1)/7)
         end
-        -- hue bar
         local hY=pY+palH+6
         local hues={Color3.fromRGB(255,0,0),Color3.fromRGB(255,255,0),Color3.fromRGB(0,255,0),Color3.fromRGB(0,255,255),Color3.fromRGB(0,0,255),Color3.fromRGB(255,0,255),Color3.fromRGB(255,0,0)}
         for i=1,6 do
             local c1,c2=hues[i],hues[i+1]; local sw2=pW/6
             for j=1,4 do
                 local t=(j-1)/3
-                local lc=Color3.new(lerp(c1.R,c2.R,t),lerp(c1.G,c2.G,t),lerp(c1.B,c2.B,t))
-                draw('cp_h'..i..'_'..j,'rect',lc,34,Vector2.new(pX+(i-1)*sw2+(j-1)*(sw2/4),hY),Vector2.new(sw2/4+1,hH),true)
+                draw('cp_h'..i..'_'..j,'rect',Color3.new(lerp(c1.R,c2.R,t),lerp(c1.G,c2.G,t),lerp(c1.B,c2.B,t)),34,Vector2.new(pX+(i-1)*sw2+(j-1)*(sw2/4),hY),Vector2.new(sw2/4+1,hH),true)
             end
         end
-        -- cursors
         draw('cp_dot', 'rect',C.white,35,Vector2.new(pX+cp.s*pW-4,pY+(1-cp.v)*palH-4),Vector2.new(8,8),true)
         draw('cp_hdot','rect',C.white,35,Vector2.new(pX+cp.h*pW-3,hY),Vector2.new(6,hH),true)
         local nc=Color3.fromHSV(cp.h,cp.s,cp.v)
         draw('cp_sw','rect',nc,34,Vector2.new(cpX+8,cpY+cH2-14),Vector2.new(cW2-16,10),true)
         if cp.cb then cp.cb(nc) end
-        -- interaction
         local mp=getMouse()
         if mouseHeld then
             if inBounds(Vector2.new(pX,pY),Vector2.new(pW,palH)) then
