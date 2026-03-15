@@ -7,9 +7,9 @@ local UILib = {
     _tree        = {},
     _tab_order   = {},
     _open_tab    = nil,
-    _menu_open   = true,   -- START OPEN so you can see it immediately
+    _menu_open   = true,
     _menu_key    = 'f1',
-    _inputs      = {['m1']={id=0x01,h=false,c=false},['m2']={id=0x02,h=false,c=false},['f2']={id=0x71,h=false,c=false},['f3']={id=0x72,h=false,c=false},['f4']={id=0x73,h=false,c=false},['f5']={id=0x74,h=false,c=false},['f6']={id=0x75,h=false,c=false},['esc']={id=0x1B,h=false,c=false},['lshift']={id=0xA0,h=false,c=false},['rshift']={id=0xA1,h=false,c=false},['up']={id=0x26,h=false,c=false},['down']={id=0x28,h=false,c=false},['left']={id=0x25,h=false,c=false},['right']={id=0x27,h=false,c=false},['unbound']={id=0x08,h=false,c=false},['enter']={id=0x0D,h=false,c=false},['space']={id=0x20,h=false,c=false},['a']={id=0x41,h=false,c=false},['b']={id=0x42,h=false,c=false},['c']={id=0x43,h=false,c=false},['d']={id=0x44,h=false,c=false},['e']={id=0x45,h=false,c=false},['f']={id=0x46,h=false,c=false},['g']={id=0x47,h=false,c=false},['h']={id=0x48,h=false,c=false},['i']={id=0x49,h=false,c=false},['j']={id=0x4A,h=false,c=false},['k']={id=0x4B,h=false,c=false},['l']={id=0x4C,h=false,c=false},['m']={id=0x4D,h=false,c=false},['n']={id=0x4E,h=false,c=false},['o']={id=0x4F,h=false,c=false},['p']={id=0x50,h=false,c=false},['q']={id=0x51,h=false,c=false},['r']={id=0x52,h=false,c=false},['s']={id=0x53,h=false,c=false},['t']={id=0x54,h=false,c=false},['u']={id=0x55,h=false,c=false},['v']={id=0x56,h=false,c=false},['w']={id=0x57,h=false,c=false},['x']={id=0x58,h=false,c=false},['y']={id=0x59,h=false,c=false},['z']={id=0x5A,h=false,c=false},['0']={id=0x30,h=false,c=false},['1']={id=0x31,h=false,c=false},['2']={id=0x32,h=false,c=false},['3']={id=0x33,h=false,c=false},['4']={id=0x34,h=false,c=false},['5']={id=0x35,h=false,c=false},['6']={id=0x36,h=false,c=false},['7']={id=0x37,h=false,c=false},['8']={id=0x38,h=false,c=false},['9']={id=0x39,h=false,c=false},['minus']={id=0xBD,h=false,c=false},['period']={id=0xBE,h=false,c=false},['comma']={id=0xBC,h=false,c=false},['slash']={id=0xBF,h=false,c=false},['semicolon']={id=0xBA,h=false,c=false},['quote']={id=0xDE,h=false,c=false},['lbracket']={id=0xDB,h=false,c=false},['rbracket']={id=0xDD,h=false,c=false},['backslash']={id=0xDC,h=false,c=false}},
+    _inputs      = {['m1']={id=0x01,h=false,c=false},['m2']={id=0x02,h=false,c=false},['lshift']={id=0xA0,h=false,c=false},['rshift']={id=0xA1,h=false,c=false},['up']={id=0x26,h=false,c=false},['down']={id=0x28,h=false,c=false},['unbound']={id=0x08,h=false,c=false},['enter']={id=0x0D,h=false,c=false},['space']={id=0x20,h=false,c=false},['a']={id=0x41,h=false,c=false},['b']={id=0x42,h=false,c=false},['c']={id=0x43,h=false,c=false},['d']={id=0x44,h=false,c=false},['e']={id=0x45,h=false,c=false},['f']={id=0x46,h=false,c=false},['g']={id=0x47,h=false,c=false},['h']={id=0x48,h=false,c=false},['i']={id=0x49,h=false,c=false},['j']={id=0x4A,h=false,c=false},['k']={id=0x4B,h=false,c=false},['l']={id=0x4C,h=false,c=false},['m']={id=0x4D,h=false,c=false},['n']={id=0x4E,h=false,c=false},['o']={id=0x4F,h=false,c=false},['p']={id=0x50,h=false,c=false},['q']={id=0x51,h=false,c=false},['r']={id=0x52,h=false,c=false},['s']={id=0x53,h=false,c=false},['t']={id=0x54,h=false,c=false},['u']={id=0x55,h=false,c=false},['v']={id=0x56,h=false,c=false},['w']={id=0x57,h=false,c=false},['x']={id=0x58,h=false,c=false},['y']={id=0x59,h=false,c=false},['z']={id=0x5A,h=false,c=false},['0']={id=0x30,h=false,c=false},['1']={id=0x31,h=false,c=false},['2']={id=0x32,h=false,c=false},['3']={id=0x33,h=false,c=false},['4']={id=0x34,h=false,c=false},['5']={id=0x35,h=false,c=false},['6']={id=0x36,h=false,c=false},['7']={id=0x37,h=false,c=false},['8']={id=0x38,h=false,c=false},['9']={id=0x39,h=false,c=false},['minus']={id=0xBD,h=false,c=false},['period']={id=0xBE,h=false,c=false},['comma']={id=0xBC,h=false,c=false}},
     _drag        = nil,
     _ctx         = nil,
     _search      = '',
@@ -18,14 +18,13 @@ local UILib = {
     _slider_drag = nil,
     _dd          = nil,
     _cp          = nil,
-    _copied_color= nil,
     _notifs      = {},
     _notif_id    = 0,
     title        = 'matcha',
     subtitle     = '',
     username     = 'Player',
     usertext     = '',
-    x = 100, y = 80, w = 580, h = 420,
+    x = 160, y = 100, w = 580, h = 420,
     _sw          = 145,
     _pad         = 10,
     _corner      = 6,
@@ -146,8 +145,6 @@ local function hit(x,y,w,h)
 end
 
 -- ─── INPUT ───────────────────────────────────────────────────────────────────
--- NOTE: F1 is intentionally excluded from _inputs.
--- The main script handles F1 via UserInputService to avoid double-toggling.
 
 local function pollInput()
     for key,data in pairs(UILib._inputs) do
@@ -175,6 +172,10 @@ function UILib:SetProfile(u,s)   self.username=u; self.usertext=s or '' end
 
 function UILib:CenterMenu()
     local ss=screen()
+    -- guard: if screen() returns 0,0 fall back to safe default
+    if ss.X < 100 or ss.Y < 100 then
+        self.x = 160; self.y = 100; return
+    end
     self.x=math.floor(ss.X/2-self.w/2)
     self.y=math.floor(ss.Y/2-self.h/2)
 end
@@ -193,7 +194,6 @@ end
 
 function UILib:Unload()
     removePfx('')
-    pcall(setrobloxinput,true)
 end
 
 -- ─── TAB / SECTION / WIDGET BUILDER ─────────────────────────────────────────
@@ -300,12 +300,10 @@ local function drawColorpicker(held2, click)
     local hH=12; local palH=pH-hH-6
     rect('cp_pal', pX, pY, pW, palH, Color3.fromHSV(cp.h,1,1))
     for i=1,16 do
-        local sx=pX+(i-1)*(pW/16)
-        sq('cp_wh_'..i, sx, pY, pW/16+1, palH, Color3.fromRGB(255,255,255), (i-1)/15)
+        sq('cp_wh_'..i, pX+(i-1)*(pW/16), pY, pW/16+1, palH, Color3.fromRGB(255,255,255), (i-1)/15)
     end
     for i=1,16 do
-        local sy=pY+(i-1)*(palH/16)
-        sq('cp_bk_'..i, pX, sy, pW, palH/16+1, Color3.fromRGB(0,0,0), 1-(i-1)/15)
+        sq('cp_bk_'..i, pX, pY+(i-1)*(palH/16), pW, palH/16+1, Color3.fromRGB(0,0,0), 1-(i-1)/15)
     end
     local hY=pY+palH+6
     local hueColors={Color3.fromRGB(255,0,0),Color3.fromRGB(255,255,0),Color3.fromRGB(0,255,0),Color3.fromRGB(0,255,255),Color3.fromRGB(0,0,255),Color3.fromRGB(255,0,255),Color3.fromRGB(255,0,0)}
@@ -341,12 +339,7 @@ function UILib:Step()
     pollInput()
     local click=pressed('m1'); local heldM=held('m1')
 
-    -- NOTE: F1 toggle is handled externally via UIS in the main script.
-    -- Do NOT toggle _menu_open here.
-
-    pcall(setrobloxinput, not self._menu_open)
-
-    -- NOTIFICATIONS
+    -- NOTIFICATIONS (shown even when menu closed)
     local nx0,ny0=self.x+self.w+8,self.y; local ntH=0
     for ni=#self._notifs,1,-1 do
         local n=self._notifs[ni]
@@ -367,6 +360,7 @@ function UILib:Step()
         hidePrefix('m_'); hidePrefix('nav_'); hidePrefix('s_'); return
     end
 
+    -- DRAG
     if heldM and self._drag then
         local mp=mouse(); self.x=mp.X-self._drag.X; self.y=mp.Y-self._drag.Y
     elseif not heldM then
@@ -636,6 +630,7 @@ function UILib:Step()
     click=drawDropdown(click)
     click=drawColorpicker(heldM, click)
 
+    -- Repaint sidebar on top
     rect('m_sb2', sbX, sbY, sw, sbH, C.side)
     ln('m_sdiv2', sbX+sw, sbY, sbX+sw, sbY+sbH, C.div)
     rect('m_sr2', srX, srY, srW, srH, C.srch)
