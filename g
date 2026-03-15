@@ -325,13 +325,25 @@ function UILib:Step()
     -- Outer window with rounded corners (6px radius)
     -- Draw cross-pattern: wide center + tall center = rounded silhouette
     local _wr = 10
-    -- Window background + title bar
-    draw('m_bg', 'rect', C.bg,   1, Vector2.new(x, y), Vector2.new(w, h),   true)
-    draw('m_tb', 'rect', C.side, 2, Vector2.new(x, y), Vector2.new(w, tbH), true)
-    -- Round the outer window: mask corners with C.bg (window color bleeds into corners - acceptable)
-    roundedCorners('m_outer', x, y, w, h,   _wr, C.bg,   3)
-    -- Round top of title bar: mask top corners with C.side so curve uses title bar color
-    roundedCorners('m_tbtop', x, y, w, tbH, _wr, C.side, 4)
+    -- Build rounded window using scanline approach - never draw in corner zones
+    -- For each row, calculate the valid x range and only draw within it
+    -- Top section (title bar): rows y to y+tbH
+    -- Full body: rows y+_wr to y+h-_wr (no rounding needed)
+    -- Bottom corners: rows y+h-_wr to y+h
+    for _row = 0, _wr-1 do
+        local _inner = math.floor(math.sqrt(math.max(0, _wr*_wr - (_wr-_row-1)*(_wr-_row-1))))
+        local _lx = x + _wr - _inner
+        local _rw = w - (_wr-_inner)*2
+        -- top rows
+        draw('m_tr'..(_row), 'rect', C.side, 2,
+            Vector2.new(_lx, y+_row), Vector2.new(_rw, 1), true)
+        -- bottom rows
+        draw('m_br'..(_row), 'rect', C.bg, 2,
+            Vector2.new(_lx, y+h-1-_row), Vector2.new(_rw, 1), true)
+    end
+    -- Middle section: full width rects from y+_wr to y+h-_wr
+    draw('m_bg', 'rect', C.bg,   1, Vector2.new(x, y+_wr), Vector2.new(w, h-_wr*2),    true)
+    draw('m_tb', 'rect', C.side, 2, Vector2.new(x, y+_wr), Vector2.new(w, tbH-_wr),    true)
     draw('m_ttl', 'text', C.text, 3, Vector2.new(x+pad+4,y+8), self.title,         false,false,14)
     local tW=textW(self.title,14)
     draw('m_sub', 'text', C.sub,  3, Vector2.new(x+pad+4+tW+6,y+10), self.subtitle, false,false,11)
