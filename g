@@ -340,7 +340,7 @@ function UILib:Step()
     draw('m_chdiv','line',C.div,    4,Vector2.new(cX+6,cY+chH),Vector2.new(cX+cW-6,cY+chH),1)
 
     -- SCROLL — consume wheel delta set by UIS in main script
-    if self._scroll_delta ~= 0 and inBounds(Vector2.new(cX,cY),Vector2.new(cW,cH)) then
+    if self._scroll_delta ~= 0 then
         self._scrollT = math.max(0, self._scrollT - self._scroll_delta * 40)
         self._scroll_delta = 0
     end
