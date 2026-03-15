@@ -397,8 +397,13 @@ function UILib:Step()
                         draw(wid..'_cp',   'rect',w2.cp.value,12,Vector2.new(cx2,cy2),Vector2.new(csz,csz),true)
                         draw(wid..'_cpbdr','rect',C.div,       13,Vector2.new(cx2,cy2),Vector2.new(csz,csz),false)
                         if clickFrame and inBounds(Vector2.new(cx2,cy2),Vector2.new(csz,csz)) then
-                            local h2,s2,v2=rgbToHsv(w2.cp.value.R,w2.cp.value.G,w2.cp.value.B)
-                            self._active_colorpicker={x=cX+cW+4,y=cY,label=w2.cp.label,h=h2,s=s2,v=v2,
+                            local col = w2.cp.value
+                            local h2,s2,v2=rgbToHsv(col.R,col.G,col.B)
+                            -- position: try right of menu, fall back to left
+                            local ss2=getScreenSize()
+                            local ppx=cX+cW+4
+                            if ppx+200>ss2.X then ppx=cX-204 end
+                            self._active_colorpicker={x=ppx,y=cY,label=w2.cp.label,h=h2,s=s2,v=v2,
                                 cb=function(c) w2.cp.value=c; if w2.cp.cb then w2.cp.cb(c) end end,_spawned_at=os.clock()}
                             clickFrame=false
                         end
