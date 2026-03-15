@@ -360,8 +360,14 @@ function UILib:Step()
         local isOpen=self._open_tab==tname
         local navCol = isOpen and C.navhi or C.side
         draw('nav_'..tname..'_bg','rect',navCol,4,Vector2.new(sbX+pad,navY),Vector2.new(sw-pad*2,28),true)
+        -- subtle border on active nav item
+        if isOpen then
+            draw('nav_'..tname..'_bdr','rect',C.div,4,Vector2.new(sbX+pad,navY),Vector2.new(sw-pad*2,28),false)
+        else
+            undraw('nav_'..tname..'_bdr')
+        end
         -- round nav item corners (mask with sidebar bg)
-        roundedCorners('nav_'..tname..'_bg', sbX+pad, navY, sw-pad*2, 28, 6, C.side, 6)
+        roundedCorners('nav_'..tname..'_bg', sbX+pad, navY, sw-pad*2, 28, 8, C.side, 6)
         if isOpen then draw('nav_'..tname..'_bar','rect',C.accent,5,Vector2.new(sbX+pad,navY+4),Vector2.new(3,20),true)
         else undraw('nav_'..tname..'_bar') end
         draw('nav_'..tname..'_t','text',isOpen and C.text or C.sub,5,Vector2.new(sbX+pad+10,navY+8),tname,false,false,12)
@@ -440,9 +446,10 @@ function UILib:Step()
 
                 local isHov=inBounds(Vector2.new(wX,wY),Vector2.new(wW,iH))
                 local cardCol = isHov and C.cardhov or C.card
-                draw(wid..'_bg','rect',cardCol,10,Vector2.new(wX,wY),Vector2.new(wW,iH),true)
-                -- round card corners (mask with content bg)
-                roundedCorners(wid..'_bg', wX, wY, wW, iH, 6, C.content, 12)
+                draw(wid..'_bg', 'rect',cardCol,10,Vector2.new(wX,wY),Vector2.new(wW,iH),true)
+                draw(wid..'_bdr','rect',C.div,  11,Vector2.new(wX,wY),Vector2.new(wW,iH),false)
+                roundedCorners(wid..'_bg',  wX, wY, wW, iH, 8, C.content, 12)
+                roundedCorners(wid..'_bdr', wX, wY, wW, iH, 8, C.content, 13)
 
                 if wType=='toggle' then
                     local hasCP=w2.cp~=nil
