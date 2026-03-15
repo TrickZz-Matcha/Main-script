@@ -27,6 +27,8 @@ UILib = {
     _notifications_spawned = 0,
     _scroll_offset     = 0,   -- content scroll
     _scroll_target     = 0,
+    _scroll_delta      = 0,   -- accumulated wheel ticks
+    _wheel_conn        = nil, -- wheel event connections
 
     -- profile shown in sidebar footer
     username  = 'Player',
@@ -414,8 +416,21 @@ function UILib:Notification(text, time)
     self._notifications_spawned=self._notifications_spawned+1
 end
 
+function UILib:UpdateFont(fontFace)
+    self._font = fontFace
+    for _, obj in pairs(self._drawings) do
+        pcall(function()
+            if obj.Font ~= nil then obj.Font = fontFace end
+        end)
+    end
+end
+
 function UILib:Unload()
     self:_RemovePrefix('')
+    if self._wheel_conn then
+        for _, c in ipairs(self._wheel_conn) do pcall(function() c:Disconnect() end) end
+        self._wheel_conn = nil
+    end
     pcall(setrobloxinput, true)
 end
 
@@ -425,6 +440,23 @@ end
 
 function UILib:Step()
     local t = self._t   -- theme shorthand
+
+    -- ── MOUSE WHEEL HOOK (connect once) ──
+    if not self._wheel_conn then
+        local p = game:GetService('Players').LocalPlayer
+        if p then
+            local m = p:GetMouse()
+            if m then
+                self._wheel_conn = {}
+                table.insert(self._wheel_conn, m.WheelForward:Connect(function()
+                    if self._menu_open then self._scroll_delta = self._scroll_delta - 1 end
+                end))
+                table.insert(self._wheel_conn, m.WheelBackward:Connect(function()
+                    if self._menu_open then self._scroll_delta = self._scroll_delta + 1 end
+                end))
+            end
+        end
+    end
 
     -- ── INPUT ──
     pcall(setrobloxinput, not self._menu_open)
@@ -622,12 +654,13 @@ function UILib:Step()
     self:_Text('menu_chead', cX+pad+4, cY+10, self._open_tab or '', t.text, 16, 14, false, false)
     self:_Line('menu_chdiv', cX+6, cY+chH, cX+cW-6, cY+chH, t.divider, 16)
 
-    -- scroll (mouse wheel approximated via page keys)
-    if self:_InBounds(cX,cY,cW,cH) then
-        if self:_Pressed('pagedown') then self._scroll_target=self._scroll_target+60 end
-        if self:_Pressed('pageup')   then self._scroll_target=math.max(0,self._scroll_target-60) end
+    -- scroll via accumulated wheel delta
+    if self._scroll_delta ~= 0 and self:_InBounds(cX,cY,cW,cH) then
+        self._scroll_target = self._scroll_target + self._scroll_delta * 30
+        self._scroll_target = math.max(0, self._scroll_target)
+        self._scroll_delta = 0
     end
-    self._scroll_offset = lerp(self._scroll_offset, self._scroll_target, 0.2)
+    self._scroll_offset = lerp(self._scroll_offset, self._scroll_target, 0.25)
 
     -- Hide all widgets for every tab that is NOT currently open
     for _, tname in ipairs(self._tab_order) do
