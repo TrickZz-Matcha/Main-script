@@ -409,6 +409,16 @@ function UILib:Step()
     end
     self._scroll = lerp(self._scroll, self._scrollT, 0.25)
 
+    local UIS = game:GetService("UserInputService")
+
+    UIS.InputChanged:Connect(function(input, processed)
+    if processed then return end
+
+    if input.UserInputType == Enum.UserInputType.MouseWheel then
+        UILib._scroll_delta = input.Position.Z
+    end
+end)
+
     -- WIDGETS
     local tabData=self._open_tab and self._tree[self._open_tab]
     for _,tname in ipairs(self._tab_order) do
