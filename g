@@ -1,10 +1,5 @@
 --[[
     library.lua — matcha edition
-    Fixes:
-      1. local UILib — not a global, won't get wiped on environment restart
-      2. _G.UILib = UILib — exported to shared _G so any executor can read it
-      3. C defined after table creation — no nil risk on Drawing API init
-      4. Nil guard in Step() — safe even if called with stale self
 ]]
 
 local UILib = {
@@ -12,9 +7,9 @@ local UILib = {
     _tree        = {},
     _tab_order   = {},
     _open_tab    = nil,
-    _menu_open   = false,
+    _menu_open   = true,   -- START OPEN so you can see it immediately
     _menu_key    = 'f1',
-    _inputs      = {['m1']={id=0x01,h=false,c=false},['m2']={id=0x02,h=false,c=false},['f1']={id=0x70,h=false,c=false},['f2']={id=0x71,h=false,c=false},['f3']={id=0x72,h=false,c=false},['f4']={id=0x73,h=false,c=false},['f5']={id=0x74,h=false,c=false},['f6']={id=0x75,h=false,c=false},['esc']={id=0x1B,h=false,c=false},['lshift']={id=0xA0,h=false,c=false},['rshift']={id=0xA1,h=false,c=false},['up']={id=0x26,h=false,c=false},['down']={id=0x28,h=false,c=false},['left']={id=0x25,h=false,c=false},['right']={id=0x27,h=false,c=false},['unbound']={id=0x08,h=false,c=false},['enter']={id=0x0D,h=false,c=false},['space']={id=0x20,h=false,c=false},['a']={id=0x41,h=false,c=false},['b']={id=0x42,h=false,c=false},['c']={id=0x43,h=false,c=false},['d']={id=0x44,h=false,c=false},['e']={id=0x45,h=false,c=false},['f']={id=0x46,h=false,c=false},['g']={id=0x47,h=false,c=false},['h']={id=0x48,h=false,c=false},['i']={id=0x49,h=false,c=false},['j']={id=0x4A,h=false,c=false},['k']={id=0x4B,h=false,c=false},['l']={id=0x4C,h=false,c=false},['m']={id=0x4D,h=false,c=false},['n']={id=0x4E,h=false,c=false},['o']={id=0x4F,h=false,c=false},['p']={id=0x50,h=false,c=false},['q']={id=0x51,h=false,c=false},['r']={id=0x52,h=false,c=false},['s']={id=0x53,h=false,c=false},['t']={id=0x54,h=false,c=false},['u']={id=0x55,h=false,c=false},['v']={id=0x56,h=false,c=false},['w']={id=0x57,h=false,c=false},['x']={id=0x58,h=false,c=false},['y']={id=0x59,h=false,c=false},['z']={id=0x5A,h=false,c=false},['0']={id=0x30,h=false,c=false},['1']={id=0x31,h=false,c=false},['2']={id=0x32,h=false,c=false},['3']={id=0x33,h=false,c=false},['4']={id=0x34,h=false,c=false},['5']={id=0x35,h=false,c=false},['6']={id=0x36,h=false,c=false},['7']={id=0x37,h=false,c=false},['8']={id=0x38,h=false,c=false},['9']={id=0x39,h=false,c=false},['minus']={id=0xBD,h=false,c=false},['period']={id=0xBE,h=false,c=false},['comma']={id=0xBC,h=false,c=false},['slash']={id=0xBF,h=false,c=false},['semicolon']={id=0xBA,h=false,c=false},['quote']={id=0xDE,h=false,c=false},['lbracket']={id=0xDB,h=false,c=false},['rbracket']={id=0xDD,h=false,c=false},['backslash']={id=0xDC,h=false,c=false}},
+    _inputs      = {['m1']={id=0x01,h=false,c=false},['m2']={id=0x02,h=false,c=false},['f2']={id=0x71,h=false,c=false},['f3']={id=0x72,h=false,c=false},['f4']={id=0x73,h=false,c=false},['f5']={id=0x74,h=false,c=false},['f6']={id=0x75,h=false,c=false},['esc']={id=0x1B,h=false,c=false},['lshift']={id=0xA0,h=false,c=false},['rshift']={id=0xA1,h=false,c=false},['up']={id=0x26,h=false,c=false},['down']={id=0x28,h=false,c=false},['left']={id=0x25,h=false,c=false},['right']={id=0x27,h=false,c=false},['unbound']={id=0x08,h=false,c=false},['enter']={id=0x0D,h=false,c=false},['space']={id=0x20,h=false,c=false},['a']={id=0x41,h=false,c=false},['b']={id=0x42,h=false,c=false},['c']={id=0x43,h=false,c=false},['d']={id=0x44,h=false,c=false},['e']={id=0x45,h=false,c=false},['f']={id=0x46,h=false,c=false},['g']={id=0x47,h=false,c=false},['h']={id=0x48,h=false,c=false},['i']={id=0x49,h=false,c=false},['j']={id=0x4A,h=false,c=false},['k']={id=0x4B,h=false,c=false},['l']={id=0x4C,h=false,c=false},['m']={id=0x4D,h=false,c=false},['n']={id=0x4E,h=false,c=false},['o']={id=0x4F,h=false,c=false},['p']={id=0x50,h=false,c=false},['q']={id=0x51,h=false,c=false},['r']={id=0x52,h=false,c=false},['s']={id=0x53,h=false,c=false},['t']={id=0x54,h=false,c=false},['u']={id=0x55,h=false,c=false},['v']={id=0x56,h=false,c=false},['w']={id=0x57,h=false,c=false},['x']={id=0x58,h=false,c=false},['y']={id=0x59,h=false,c=false},['z']={id=0x5A,h=false,c=false},['0']={id=0x30,h=false,c=false},['1']={id=0x31,h=false,c=false},['2']={id=0x32,h=false,c=false},['3']={id=0x33,h=false,c=false},['4']={id=0x34,h=false,c=false},['5']={id=0x35,h=false,c=false},['6']={id=0x36,h=false,c=false},['7']={id=0x37,h=false,c=false},['8']={id=0x38,h=false,c=false},['9']={id=0x39,h=false,c=false},['minus']={id=0xBD,h=false,c=false},['period']={id=0xBE,h=false,c=false},['comma']={id=0xBC,h=false,c=false},['slash']={id=0xBF,h=false,c=false},['semicolon']={id=0xBA,h=false,c=false},['quote']={id=0xDE,h=false,c=false},['lbracket']={id=0xDB,h=false,c=false},['rbracket']={id=0xDD,h=false,c=false},['backslash']={id=0xDC,h=false,c=false}},
     _drag        = nil,
     _ctx         = nil,
     _search      = '',
@@ -38,7 +33,6 @@ local UILib = {
     _fsize       = 13,
 }
 
--- FIX 1: C defined after table so Drawing.Fonts.System is always ready
 UILib.C = {
     bg      = Color3.fromRGB(18,18,20),
     side    = Color3.fromRGB(22,22,25),
@@ -152,6 +146,8 @@ local function hit(x,y,w,h)
 end
 
 -- ─── INPUT ───────────────────────────────────────────────────────────────────
+-- NOTE: F1 is intentionally excluded from _inputs.
+-- The main script handles F1 via UserInputService to avoid double-toggling.
 
 local function pollInput()
     for key,data in pairs(UILib._inputs) do
@@ -301,16 +297,15 @@ local function drawColorpicker(held2, click)
     rect('cp_bg', cx, cy, cW, cH, UILib.C.card)
     txt('cp_lbl', cx+8, cy+6, cp.label, UILib.C.text, 12)
     local pX,pY,pW,pH=cx+8,cy+22,cW-16,cH-50
-    local hH=12
-    local palH=pH-hH-6
+    local hH=12; local palH=pH-hH-6
     rect('cp_pal', pX, pY, pW, palH, Color3.fromHSV(cp.h,1,1))
     for i=1,16 do
-        local sx=pX+(i-1)*(pW/16); local sw=pW/16+1
-        sq('cp_wh_'..i, sx, pY, sw, palH, Color3.fromRGB(255,255,255), (i-1)/15)
+        local sx=pX+(i-1)*(pW/16)
+        sq('cp_wh_'..i, sx, pY, pW/16+1, palH, Color3.fromRGB(255,255,255), (i-1)/15)
     end
     for i=1,16 do
-        local sy=pY+(i-1)*(palH/16); local sh=palH/16+1
-        sq('cp_bk_'..i, pX, sy, pW, sh, Color3.fromRGB(0,0,0), 1-(i-1)/15)
+        local sy=pY+(i-1)*(palH/16)
+        sq('cp_bk_'..i, pX, sy, pW, palH/16+1, Color3.fromRGB(0,0,0), 1-(i-1)/15)
     end
     local hY=pY+palH+6
     local hueColors={Color3.fromRGB(255,0,0),Color3.fromRGB(255,255,0),Color3.fromRGB(0,255,0),Color3.fromRGB(0,255,255),Color3.fromRGB(0,0,255),Color3.fromRGB(255,0,255),Color3.fromRGB(255,0,0)}
@@ -322,8 +317,8 @@ local function drawColorpicker(held2, click)
             sq('cp_h_'..i..'_'..j, pX+(i-1)*segW+(j-1)*(segW/8), hY, segW/8+1, hH, lc)
         end
     end
-    sq('cp_dot',  pX+cp.s*pW-4,   pY+(1-cp.v)*palH-4, 8, 8,  UILib.C.white)
-    sq('cp_hdot', pX+cp.h*pW-3,   hY,                  6, hH, UILib.C.white)
+    sq('cp_dot',  pX+cp.s*pW-4, pY+(1-cp.v)*palH-4, 8, 8,  UILib.C.white)
+    sq('cp_hdot', pX+cp.h*pW-3, hY,                  6, hH, UILib.C.white)
     local nc=Color3.fromHSV(cp.h,cp.s,cp.v)
     sq('cp_sw', cx+8, cy+cH-14, cW-16, 10, nc)
     if cp.cb then cp.cb(nc) end
@@ -339,16 +334,15 @@ end
 -- ─── MAIN STEP ───────────────────────────────────────────────────────────────
 
 function UILib:Step()
-    -- FIX 2: nil guard — recover C if self somehow lost it
     if not self.C then self.C = UILib.C end
     if not self.C then return end
-
     local C=self.C
 
     pollInput()
     local click=pressed('m1'); local heldM=held('m1')
 
-    if pressed(self._menu_key) then self._menu_open=not self._menu_open end
+    -- NOTE: F1 toggle is handled externally via UIS in the main script.
+    -- Do NOT toggle _menu_open here.
 
     pcall(setrobloxinput, not self._menu_open)
 
@@ -383,7 +377,6 @@ function UILib:Step()
     local sw,pad=self._sw,self._pad
     local tbH=32
 
-    -- OUTER BG + TITLE BAR
     rect('m_bg', x, y, w, h, C.bg)
     rect('m_tb', x, y, w, tbH, C.side)
     txt('m_title', x+pad+4, y+8, self.title, C.text, 14)
@@ -396,12 +389,10 @@ function UILib:Step()
         local mp=mouse(); self._drag=Vector2.new(mp.X-x,mp.Y-y); click=false
     end
 
-    -- SIDEBAR
     local sbX,sbY,sbH=x,y+tbH,h-tbH
     rect('m_sb', sbX, sbY, sw, sbH, C.side)
     ln('m_sdiv', sbX+sw, sbY, sbX+sw, sbY+sbH, C.div)
 
-    -- SEARCH BAR
     local srX,srY,srW,srH=sbX+pad,sbY+pad,sw-pad*2,26
     rect('m_sr', srX, srY, srW, srH, C.srch)
     ln('m_sr_t', srX, srY, srX+srW, srY, C.div)
@@ -434,7 +425,6 @@ function UILib:Step()
         end
     end
 
-    -- NAV TABS
     local navY=srY+srH+6
     for _,tname in ipairs(self._tab_order) do
         local isOpen=self._open_tab==tname
@@ -450,7 +440,6 @@ function UILib:Step()
         navY=navY+28+3
     end
 
-    -- PROFILE FOOTER
     local pfY=sbY+sbH-38
     ln('m_pfl', sbX+6, pfY, sbX+sw-6, pfY, C.div)
     rect('m_pfbg', sbX, pfY, sw, 38, C.side)
@@ -459,7 +448,6 @@ function UILib:Step()
     txt('m_pfname', sbX+pad+28, pfY+8, self.username or '', C.text, 11)
     txt('m_pfsub',  sbX+pad+28, pfY+20, self.usertext or '', C.sub, 10)
 
-    -- CONTENT AREA
     local cX=x+sw+1; local cY=y+tbH; local cW=w-sw-1; local cH=h-tbH
     rect('m_ct', cX, cY, cW, cH, C.content)
     local chH=34
@@ -467,7 +455,6 @@ function UILib:Step()
     txt('m_chtxt', cX+pad+4, cY+10, self._open_tab or '', C.text, 14)
     ln('m_chdiv', cX+6, cY+chH, cX+cW-6, cY+chH, C.div)
 
-    -- SCROLL
     if pressed('up')   then self._scrollT=math.max(0,self._scrollT-35) end
     if pressed('down') then self._scrollT=self._scrollT+35 end
     self._scroll=lerp(self._scroll, self._scrollT, 0.2)
@@ -475,7 +462,6 @@ function UILib:Step()
     local sq2=self._search:lower()
     local tabData=self._open_tab and self._tree[self._open_tab]
 
-    -- Hide inactive tabs
     for _,tname in ipairs(self._tab_order) do
         if tname~=self._open_tab then
             local td=self._tree[tname]
@@ -483,7 +469,6 @@ function UILib:Step()
         end
     end
 
-    -- WIDGETS
     if tabData then
         local wY=cY+chH+pad-math.floor(self._scroll)
         local wX=cX+pad; local wW=cW-pad*2
@@ -648,11 +633,9 @@ function UILib:Step()
         self._scrollT=clamp(self._scrollT,0,maxScroll)
     end
 
-    -- POPUPS ON TOP
     click=drawDropdown(click)
     click=drawColorpicker(heldM, click)
 
-    -- REPAINT SIDEBAR ON TOP (no z-index in Drawing API)
     rect('m_sb2', sbX, sbY, sw, sbH, C.side)
     ln('m_sdiv2', sbX+sw, sbY, sbX+sw, sbY+sbH, C.div)
     rect('m_sr2', srX, srY, srW, srH, C.srch)
@@ -677,6 +660,5 @@ function UILib:Step()
     rect('m_bot', cX, cY+cH-2, cW, 4, C.bg)
 end
 
--- FIX 3: export to _G so any executor sandbox can read it
 _G.UILib = UILib
 return UILib
