@@ -576,21 +576,27 @@ function UILib:Step()
                 draw('cp_h'..i..'_'..j,'rect',Color3.new(lerp(c1.R,c2.R,t),lerp(c1.G,c2.G,t),lerp(c1.B,c2.B,t)),34,Vector2.new(pX+(i-1)*sw2+(j-1)*(sw2/4),hY),Vector2.new(sw2/4+1,hH),true)
             end
         end
-        draw('cp_dot', 'rect',C.white,35,Vector2.new(pX+cp.s*pW-4,pY+(1-cp.v)*palH-4),Vector2.new(8,8),true)
-        draw('cp_hdot','rect',C.white,35,Vector2.new(pX+cp.h*pW-3,hY),Vector2.new(6,hH),true)
-        local nc=Color3.fromHSV(cp.h,cp.s,cp.v)
-        draw('cp_sw','rect',nc,34,Vector2.new(cpX+8,cpY+cH2-14),Vector2.new(cW2-16,10),true)
-        local mp=getMouse()
+        -- Dot position matches grid: s goes left(0)->right(1), v goes top(1)->bottom(0)
+        local dotX = pX + cp.s * pW - 5
+        local dotY = pY + (1 - cp.v) * palH - 5
+        draw('cp_dot_bg',  'rect', C.black, 36, Vector2.new(dotX,   dotY),   Vector2.new(10,10), true)
+        draw('cp_dot',     'rect', C.white, 37, Vector2.new(dotX+2, dotY+2), Vector2.new(6,  6), true)
+        draw('cp_hdot','rect', C.white, 36, Vector2.new(pX + cp.h*pW - 3, hY), Vector2.new(6,hH), true)
+        local nc = Color3.fromHSV(cp.h, cp.s, cp.v)
+        draw('cp_sw','rect', nc, 36, Vector2.new(cpX+8, cpY+cH2-14), Vector2.new(cW2-16, 10), true)
+        local mp = getMouse()
         if mouseHeld then
             local changed = false
-            if inBounds(Vector2.new(pX,pY),Vector2.new(pW,palH)) then
-                cp.s=clamp((mp.X-pX)/pW,0,1); cp.v=1-clamp((mp.Y-pY)/palH,0,1); changed=true
-            end
-            if inBounds(Vector2.new(pX,hY),Vector2.new(pW,hH)) then
-                cp.h=clamp((mp.X-pX)/pW,0,1); changed=true
+            if inBounds(Vector2.new(pX,pY), Vector2.new(pW,palH)) then
+                cp.s = clamp((mp.X - pX) / pW, 0, 1)
+                cp.v = 1 - clamp((mp.Y - pY) / palH, 0, 1)
+                changed = true
+            elseif inBounds(Vector2.new(pX,hY), Vector2.new(pW,hH)) then
+                cp.h = clamp((mp.X - pX) / pW, 0, 1)
+                changed = true
             end
             if changed and cp.cb then
-                cp.cb(Color3.fromHSV(cp.h,cp.s,cp.v))
+                cp.cb(Color3.fromHSV(cp.h, cp.s, cp.v))
             end
         end
         if clickFrame and not inBounds(Vector2.new(cpX,cpY),Vector2.new(cW2,cH2)) then
