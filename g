@@ -457,6 +457,8 @@ function UILib:Step()
                         local csz=18; local cx2=wX+wW-csz-8; local cy2=wY+(iH-csz)/2
                         draw(wid..'_cp',   'rect',w2.cp.value,12,Vector2.new(cx2,cy2),Vector2.new(csz,csz),true)
                         draw(wid..'_cpbdr','rect',C.div,       13,Vector2.new(cx2,cy2),Vector2.new(csz,csz),false)
+                        roundedCorners(wid..'_cp',   cx2, cy2, csz, csz, 4, cardCol, 14)
+                        roundedCorners(wid..'_cpbdr',cx2, cy2, csz, csz, 4, cardCol, 15)
                         if clickFrame and inBounds(Vector2.new(cx2,cy2),Vector2.new(csz,csz)) then
                             local col = w2.cp.value
                             local h2,s2,v2=rgbToHsv(col.R,col.G,col.B)
@@ -476,7 +478,9 @@ function UILib:Step()
                     draw(wid..'_trk','rect',trkCol,11,Vector2.new(tX,tY2),Vector2.new(34,18),true)
                     -- round toggle track ends
                     roundedCorners(wid..'_trk', tX, tY2, 34, 18, 9, cardCol, 13)
-                    draw(wid..'_thm','rect',C.white,12,Vector2.new(w2.value and tX+16 or tX+2,tY2+2),Vector2.new(14,14),true)
+                    local thmPX = w2.value and tX+16 or tX+2
+                    draw(wid..'_thm','rect',C.white,12,Vector2.new(thmPX,tY2+2),Vector2.new(14,14),true)
+                    roundedCorners(wid..'_thm', thmPX, tY2+2, 14, 14, 7, trkCol, 14)
                     if clickFrame and inBounds(Vector2.new(tX,tY2),Vector2.new(34,18)) then
                         w2.value=not w2.value; if w2.cb then w2.cb(w2.value) end; clickFrame=false
                     end
@@ -566,6 +570,8 @@ function UILib:Step()
                     local csz=20; local cx2=wX+wW-csz-8; local cy2=wY+7
                     draw(wid..'_sw', 'rect',w2.value,12,Vector2.new(cx2,cy2),Vector2.new(csz,csz),true)
                     draw(wid..'_bdr','rect',C.div,   13,Vector2.new(cx2,cy2),Vector2.new(csz,csz),false)
+                    roundedCorners(wid..'_sw',  cx2, cy2, csz, csz, 4, cardCol, 14)
+                    roundedCorners(wid..'_bdr', cx2, cy2, csz, csz, 4, cardCol, 15)
                     if clickFrame and inBounds(Vector2.new(cx2,cy2),Vector2.new(csz,csz)) then
                         local h2,s2,v2=rgbToHsv(w2.value.R,w2.value.G,w2.value.B)
                         self._active_colorpicker={x=cX+cW+4,y=cY,label=w2.label,h=h2,s=s2,v=v2,
