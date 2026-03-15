@@ -551,22 +551,21 @@ function UILib:Step()
         draw('cp_lbl','text',C.text,31,Vector2.new(cpX+8,cpY+6),cp.label,false,false,12)
         local pX=cpX+8; local pY=cpY+22; local pW=cW2-16; local pH=cH2-50
         local hH=12; local palH=pH-hH-6
-        -- Base: solid hue color
-        draw('cp_pal','rect',Color3.fromHSV(cp.h,1,1),31,Vector2.new(pX,pY),Vector2.new(pW,palH),true)
-        -- White→transparent horizontal gradient (left=white s=0, right=transparent s=1)
-        -- Transparency=0 is opaque, Transparency=1 is invisible in Drawing API
-        for i=1,16 do
-            local t = (i-1)/15  -- 0 on left, 1 on right
-            local segX = pX + (i-1)*(pW/16)
-            draw('cp_w'..i,'rect',Color3.fromRGB(255,255,255),32,Vector2.new(segX,pY),Vector2.new(pW/16+1,palH),true)
-            setAlpha('cp_w'..i, t)  -- left=0(opaque white), right=1(invisible)
-        end
-        -- Transparent→black vertical gradient (top=transparent v=1, bottom=black v=0)
-        for i=1,16 do
-            local t = (i-1)/15  -- 0 at top, 1 at bottom
-            local segY = pY + (i-1)*(palH/16)
-            draw('cp_b'..i,'rect',Color3.fromRGB(0,0,0),33,Vector2.new(pX,segY),Vector2.new(pW,palH/16+1),true)
-            setAlpha('cp_b'..i, 1-t)  -- top=1(invisible), bottom=0(opaque black)
+        -- Draw palette as a grid of colored cells - direct HSV computation, no transparency tricks
+        -- 12 columns (saturation 0->1) x 8 rows (value 1->0)
+        local cols, rows = 12, 8
+        local cellW = pW / cols
+        local cellH = palH / rows
+        for col = 0, cols-1 do
+            local s = col / (cols-1)
+            for row = 0, rows-1 do
+                local v = 1 - (row / (rows-1))
+                local cellColor = Color3.fromHSV(cp.h, s, v)
+                local cellId = 'cp_cell_' .. col .. '_' .. row
+                draw(cellId, 'rect', cellColor, 31,
+                    Vector2.new(pX + col*cellW, pY + row*cellH),
+                    Vector2.new(cellW+1, cellH+1), true)
+            end
         end
         local hY=pY+palH+6
         local hues={Color3.fromRGB(255,0,0),Color3.fromRGB(255,255,0),Color3.fromRGB(0,255,0),Color3.fromRGB(0,255,255),Color3.fromRGB(0,0,255),Color3.fromRGB(255,0,255),Color3.fromRGB(255,0,0)}
