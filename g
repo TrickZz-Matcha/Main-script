@@ -113,22 +113,42 @@ local function setAlpha(id, a)
     local o=D[id]; if o then o.Transparency=a end
 end
 
--- Draw a rounded rect by masking corners with bg color squares
--- r = corner radius (pixels), bg = color to use for corner masks
-local function roundRect(id, x, y, w, h, col, zi, r, bg)
-    -- main body
-    draw(id, 'rect', col, zi, Vector2.new(x, y), Vector2.new(w, h), true)
-    if not r or r <= 0 or not bg then return end
-    -- corner masks (drawn at zi+1 to sit on top)
-    local corners = {
-        {x,       y      },  -- top-left
-        {x+w-r,   y      },  -- top-right
-        {x,       y+h-r  },  -- bottom-left
-        {x+w-r,   y+h-r  },  -- bottom-right
-    }
-    for i, c in ipairs(corners) do
-        draw(id..'_cr'..i, 'rect', bg, zi+1, Vector2.new(c[1], c[2]), Vector2.new(r, r), true)
+-- Draw smooth rounded corners by masking with multiple small squares along a circle arc
+-- bg = the color BEHIND the rect (used to cut corners)
+local function maskCorner(id, cx, cy, r, bg, zi, quadrant)
+    -- quadrant: 'tl','tr','bl','br'
+    -- draws small squares outside the circle arc to mask the corner
+    local steps = r
+    for i = 0, steps do
+        local angle = (i / steps) * (math.pi / 2)
+        local ax, ay
+        if quadrant == 'tl' then
+            ax = cx - r + math.floor(r * math.sin(angle))
+            ay = cy - r + math.floor(r * math.cos(angle))
+            -- mask the rectangle area outside the arc
+            draw(id..'_'..i, 'rect', bg, zi, Vector2.new(cx-r, ay), Vector2.new(ax-(cx-r)+1, 1), true)
+        elseif quadrant == 'tr' then
+            ax = cx + math.floor(r * math.sin(angle))
+            ay = cy - r + math.floor(r * math.cos(angle))
+            draw(id..'_'..i, 'rect', bg, zi, Vector2.new(ax, ay), Vector2.new((cx+r)-ax+1, 1), true)
+        elseif quadrant == 'bl' then
+            ax = cx - r + math.floor(r * math.sin(angle))
+            ay = cy + math.floor(r * math.cos(angle))
+            draw(id..'_'..i, 'rect', bg, zi, Vector2.new(cx-r, ay), Vector2.new(ax-(cx-r)+1, 1), true)
+        elseif quadrant == 'br' then
+            ax = cx + math.floor(r * math.sin(angle))
+            ay = cy + math.floor(r * math.cos(angle))
+            draw(id..'_'..i, 'rect', bg, zi, Vector2.new(ax, ay), Vector2.new((cx+r)-ax+1, 1), true)
+        end
     end
+end
+
+local function roundedCorners(id, x, y, w, h, r, bg, zi)
+    if not r or r <= 0 then return end
+    maskCorner(id..'_ctl', x+r,   y+r,   r, bg, zi, 'tl')
+    maskCorner(id..'_ctr', x+w-r, y+r,   r, bg, zi, 'tr')
+    maskCorner(id..'_cbl', x+r,   y+h-r, r, bg, zi, 'bl')
+    maskCorner(id..'_cbr', x+w-r, y+h-r, r, bg, zi, 'br')
 end
 
 -- ─── HELPERS ─────────────────────────────────────────────────────────────────
@@ -312,16 +332,16 @@ function UILib:Step()
     local _wr = 6
     draw('m_bg',  'rect', C.bg, 1, Vector2.new(x+_wr, y),      Vector2.new(w-_wr*2, h),   true)  -- tall center
     draw('m_bg2', 'rect', C.bg, 1, Vector2.new(x,      y+_wr), Vector2.new(w,       h-_wr*2), true)  -- wide center
-    -- Corner fill circles (approximated as small squares at 45deg)
-    draw('m_bg_tl','rect',C.bg,1,Vector2.new(x+2,      y+2),       Vector2.new(_wr-2,_wr-2),true)
-    draw('m_bg_tr','rect',C.bg,1,Vector2.new(x+w-_wr,  y+2),       Vector2.new(_wr-2,_wr-2),true)
-    draw('m_bg_bl','rect',C.bg,1,Vector2.new(x+2,      y+h-_wr),   Vector2.new(_wr-2,_wr-2),true)
-    draw('m_bg_br','rect',C.bg,1,Vector2.new(x+w-_wr,  y+h-_wr),   Vector2.new(_wr-2,_wr-2),true)
+    -- smooth outer window corners - mask with black (game bg approximation)
+    maskCorner('m_bg_ctl', x+_wr,   y+_wr,   _wr, Color3.fromRGB(0,0,0), 0, 'tl')
+    maskCorner('m_bg_ctr', x+w-_wr, y+_wr,   _wr, Color3.fromRGB(0,0,0), 0, 'tr')
+    maskCorner('m_bg_cbl', x+_wr,   y+h-_wr, _wr, Color3.fromRGB(0,0,0), 0, 'bl')
+    maskCorner('m_bg_cbr', x+w-_wr, y+h-_wr, _wr, Color3.fromRGB(0,0,0), 0, 'br')
     draw('m_tb',  'rect', C.side, 2, Vector2.new(x+_wr, y),        Vector2.new(w-_wr*2, tbH), true)
     draw('m_tb2', 'rect', C.side, 2, Vector2.new(x,     y+_wr),    Vector2.new(w,       tbH-_wr), true)
-    -- Title bar rounded top corners fill
-    draw('m_tb_tl','rect',C.side,2,Vector2.new(x+2,    y+2),       Vector2.new(_wr-2,_wr-2),true)
-    draw('m_tb_tr','rect',C.side,2,Vector2.new(x+w-_wr,y+2),       Vector2.new(_wr-2,_wr-2),true)
+    -- title bar top smooth corners
+    maskCorner('m_tb_ctl', x+_wr,   y+_wr, _wr, C.bg, 3, 'tl')
+    maskCorner('m_tb_ctr', x+w-_wr, y+_wr, _wr, C.bg, 3, 'tr')
     draw('m_ttl', 'text', C.text, 3, Vector2.new(x+pad+4,y+8), self.title,         false,false,14)
     local tW=textW(self.title,14)
     draw('m_sub', 'text', C.sub,  3, Vector2.new(x+pad+4+tW+6,y+10), self.subtitle, false,false,11)
@@ -345,10 +365,7 @@ function UILib:Step()
         local navCol = isOpen and C.navhi or C.side
         draw('nav_'..tname..'_bg','rect',navCol,4,Vector2.new(sbX+pad,navY),Vector2.new(sw-pad*2,28),true)
         -- round nav item corners (mask with sidebar bg)
-        local _nr=6
-        for _ni,_nc in ipairs({{sbX+pad,navY},{sbX+pad+sw-pad*2-_nr,navY},{sbX+pad,navY+28-_nr},{sbX+pad+sw-pad*2-_nr,navY+28-_nr}}) do
-            draw('nav_'..tname..'_cr'.._ni,'rect',C.side,6,Vector2.new(_nc[1],_nc[2]),Vector2.new(_nr,_nr),true)
-        end
+        roundedCorners('nav_'..tname..'_bg', sbX+pad, navY, sw-pad*2, 28, 6, C.side, 6)
         if isOpen then draw('nav_'..tname..'_bar','rect',C.accent,5,Vector2.new(sbX+pad,navY+4),Vector2.new(3,20),true)
         else undraw('nav_'..tname..'_bar') end
         draw('nav_'..tname..'_t','text',isOpen and C.text or C.sub,5,Vector2.new(sbX+pad+10,navY+8),tname,false,false,12)
@@ -364,10 +381,7 @@ function UILib:Step()
     local pfY=sbY+sbH-38
     draw('m_pfbg', 'rect',C.side,  2,Vector2.new(sbX,pfY),      Vector2.new(sw,38),true)
     draw('m_pfav', 'rect',C.accdim,4,Vector2.new(sbX+pad,pfY+7),Vector2.new(24,24),true)
-    -- round avatar corners
-    for _ai,_ac in ipairs({{sbX+pad,pfY+7},{sbX+pad+20,pfY+7},{sbX+pad,pfY+27},{sbX+pad+20,pfY+27}}) do
-        draw('m_pfav_cr'.._ai,'rect',C.side,5,Vector2.new(_ac[1],_ac[2]),Vector2.new(4,4),true)
-    end
+    roundedCorners('m_pfav', sbX+pad, pfY+7, 24, 24, 5, C.side, 5)
     draw('m_pfn',  'text',C.accent,5,Vector2.new(sbX+pad+12,pfY+13),(self.username or 'P'):sub(1,1):upper(),false,true,11)
     draw('m_pfname','text',C.text, 5,Vector2.new(sbX+pad+28,pfY+8), self.username or '',false,false,11)
     draw('m_pfsub', 'text',C.sub,  5,Vector2.new(sbX+pad+28,pfY+20),self.usertext or '',false,false,10)
@@ -432,10 +446,7 @@ function UILib:Step()
                 local cardCol = isHov and C.cardhov or C.card
                 draw(wid..'_bg','rect',cardCol,10,Vector2.new(wX,wY),Vector2.new(wW,iH),true)
                 -- round card corners (mask with content bg)
-                local _r=6
-                for _ci,_cc in ipairs({{wX,wY},{wX+wW-_r,wY},{wX,wY+iH-_r},{wX+wW-_r,wY+iH-_r}}) do
-                    draw(wid..'_bgcr'.._ci,'rect',C.content,12,Vector2.new(_cc[1],_cc[2]),Vector2.new(_r,_r),true)
-                end
+                roundedCorners(wid..'_bg', wX, wY, wW, iH, 6, C.content, 12)
 
                 if wType=='toggle' then
                     local hasCP=w2.cp~=nil
@@ -461,10 +472,7 @@ function UILib:Step()
                     local trkCol = w2.value and onC or C.trkoff
                     draw(wid..'_trk','rect',trkCol,11,Vector2.new(tX,tY2),Vector2.new(34,18),true)
                     -- round toggle track ends
-                    local _tr=9
-                    for _ti,_tc in ipairs({{tX,tY2},{tX+34-_tr,tY2},{tX,tY2+18-_tr},{tX+34-_tr,tY2+18-_tr}}) do
-                        draw(wid..'_trkcr'.._ti,'rect',cardCol,13,Vector2.new(_tc[1],_tc[2]),Vector2.new(_tr,_tr),true)
-                    end
+                    roundedCorners(wid..'_trk', tX, tY2, 34, 18, 9, cardCol, 13)
                     draw(wid..'_thm','rect',C.white,12,Vector2.new(w2.value and tX+16 or tX+2,tY2+2),Vector2.new(14,14),true)
                     if clickFrame and inBounds(Vector2.new(tX,tY2),Vector2.new(34,18)) then
                         w2.value=not w2.value; if w2.cb then w2.cb(w2.value) end; clickFrame=false
@@ -486,10 +494,7 @@ function UILib:Step()
                     if pct>0 then draw(wid..'_fill','rect',C.accent,12,Vector2.new(slX,slY2),Vector2.new(math.max(2,slW*pct),4),true) end
                     local thmX=slX+slW*pct-5; local thmY=slY2-3
                     draw(wid..'_thm','rect',C.white,13,Vector2.new(thmX,thmY),Vector2.new(10,10),true)
-                    -- round thumb corners
-                    for _si,_sc in ipairs({{thmX,thmY},{thmX+7,thmY},{thmX,thmY+7},{thmX+7,thmY+7}}) do
-                        draw(wid..'_thmcr'.._si,'rect',C.content,14,Vector2.new(_sc[1],_sc[2]),Vector2.new(3,3),true)
-                    end
+                    roundedCorners(wid..'_thm', thmX, thmY, 10, 10, 5, C.content, 14)
                     if mouseHeld then
                         if inBounds(Vector2.new(slX-4,slY2-6),Vector2.new(slW+8,16)) and clickFrame then
                             self._slider_drag=wid; clickFrame=false
