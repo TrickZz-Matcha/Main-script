@@ -546,16 +546,22 @@ function UILib:Step()
         draw('cp_lbl','text',C.text,31,Vector2.new(cpX+8,cpY+6),cp.label,false,false,12)
         local pX=cpX+8; local pY=cpY+22; local pW=cW2-16; local pH=cH2-50
         local hH=12; local palH=pH-hH-6
+        -- Base: solid hue color
         draw('cp_pal','rect',Color3.fromHSV(cp.h,1,1),31,Vector2.new(pX,pY),Vector2.new(pW,palH),true)
-        -- white gradient: fully white on left (s=0), transparent on right (s=1)
-        for i=1,8 do
-            draw('cp_w'..i,'rect',Color3.fromRGB(255,255,255),32,Vector2.new(pX+(i-1)*pW/8,pY),Vector2.new(pW/8+1,palH),true)
-            setAlpha('cp_w'..i, 1 - (i-1)/7)
+        -- White→transparent horizontal gradient (left=white s=0, right=transparent s=1)
+        -- Transparency=0 is opaque, Transparency=1 is invisible in Drawing API
+        for i=1,16 do
+            local t = (i-1)/15  -- 0 on left, 1 on right
+            local segX = pX + (i-1)*(pW/16)
+            draw('cp_w'..i,'rect',Color3.fromRGB(255,255,255),32,Vector2.new(segX,pY),Vector2.new(pW/16+1,palH),true)
+            setAlpha('cp_w'..i, t)  -- left=0(opaque white), right=1(invisible)
         end
-        -- black gradient: transparent on top (v=1), fully black on bottom (v=0)
-        for i=1,8 do
-            draw('cp_b'..i,'rect',Color3.fromRGB(0,0,0),33,Vector2.new(pX,pY+(i-1)*palH/8),Vector2.new(pW,palH/8+1),true)
-            setAlpha('cp_b'..i, (i-1)/7)
+        -- Transparent→black vertical gradient (top=transparent v=1, bottom=black v=0)
+        for i=1,16 do
+            local t = (i-1)/15  -- 0 at top, 1 at bottom
+            local segY = pY + (i-1)*(palH/16)
+            draw('cp_b'..i,'rect',Color3.fromRGB(0,0,0),33,Vector2.new(pX,segY),Vector2.new(pW,palH/16+1),true)
+            setAlpha('cp_b'..i, 1-t)  -- top=1(invisible), bottom=0(opaque black)
         end
         local hY=pY+palH+6
         local hues={Color3.fromRGB(255,0,0),Color3.fromRGB(255,255,0),Color3.fromRGB(0,255,0),Color3.fromRGB(0,255,255),Color3.fromRGB(0,0,255),Color3.fromRGB(255,0,255),Color3.fromRGB(255,0,0)}
