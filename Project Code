@@ -102,8 +102,13 @@ local FANS = 7   -- triangles per corner quarter
 
 local function _getOrCreate(drawings, id, dType)
     if not drawings[id] then
-        drawings[id] = Drawing.new(dType)
-        drawings[id].Visible = false
+        local ok, d = pcall(Drawing.new, dType)
+        if ok and d then
+            d.Visible = false
+            drawings[id] = d
+        else
+            return nil
+        end
     end
     return drawings[id]
 end
@@ -116,12 +121,15 @@ function UILib:_RRect(id, x, y, w, h, col, z, r, alpha)
     r = math.min(r or self._corner_r, math.floor(math.min(w,h)/2))
     alpha = alpha or 1
     local function setRect(sid, rx, ry, rw, rh)
+        if not rw or rw<=0 or not rh or rh<=0 then return end
         local o = _getOrCreate(self._drawings, sid, 'Square')
+        if not o then return end
         o.Position=Vector2.new(rx,ry); o.Size=Vector2.new(rw,rh)
         o.Filled=true; o.Color=col; o.ZIndex=z; o.Transparency=alpha; o.Visible=true
     end
     local function setTri(sid, a, b, c)
         local o = _getOrCreate(self._drawings, sid, 'Triangle')
+        if not o then return end
         o.PointA=a; o.PointB=b; o.PointC=c
         o.Filled=true; o.Color=col; o.ZIndex=z; o.Transparency=alpha; o.Visible=true
     end
@@ -183,6 +191,7 @@ function UILib:_RRectOutline(id, x, y, w, h, col, z, r, alpha)
     }
     for i,seg in ipairs(segs) do
         local o = _getOrCreate(self._drawings, id..'_ol'..i, 'Line')
+        if not o then continue end
         o.From=seg[1]; o.To=seg[2]; o.Color=col; o.ZIndex=z
         pcall(function() o.Thickness=1 end)
         pcall(function() o.Filled=1 end)
@@ -194,6 +203,7 @@ end
 function UILib:_Text(id, x, y, text, col, z, size, center, outline, alpha)
     if not x or not y or not col or not z then return end
     local o = _getOrCreate(self._drawings, id, 'Text')
+    if not o then return end
     o.Position=Vector2.new(x,y); o.Text=tostring(text or ''); o.Color=col; o.ZIndex=z
     o.Size=size or self._font_size or 13; o.Font=self._font or Drawing.Fonts.Plex
     o.Center=center or false; o.Outline=outline or false
@@ -213,6 +223,7 @@ end
 function UILib:_Line(id, x1, y1, x2, y2, col, z, alpha)
     if not x1 or not y1 or not x2 or not y2 or not col or not z then return end
     local o = _getOrCreate(self._drawings, id, 'Line')
+    if not o then return end
     o.From=Vector2.new(x1,y1); o.To=Vector2.new(x2,y2)
     o.Color=col; o.ZIndex=z
     pcall(function() o.Thickness=1 end)
@@ -248,7 +259,8 @@ end
 
 -- text bounds estimate
 function UILib:_TBounds(text, size)
-    size = size or self._font_size
+    size = size or self._font_size or 13
+    text = tostring(text or '')
     return Vector2.new(#text * size * 0.55, size)
 end
 
@@ -409,8 +421,10 @@ function UILib:Step()
     -- ── INPUT ──
     pcall(setrobloxinput, not self._menu_open)
     for key, data in pairs(self._inputs) do
-        local pressed = iskeypressed(data.id)
-        if isrbxactive() and pressed then
+        local ok2, pressed = pcall(iskeypressed, data.id)
+        if not ok2 then pressed = false end
+        local rbxok, rbxActive = pcall(isrbxactive); rbxActive = rbxok and rbxActive
+        if rbxActive and pressed then
             self._inputs[key].click = not data.held
             self._inputs[key].held  = true
         else
@@ -620,7 +634,7 @@ function UILib:Step()
                 end
 
                 local wType = widget.type
-                local itemH = (wType=='toggle' or wType=='button') and (widget.subtitle~='' and 54 or 36)
+                local itemH = (wType=='toggle' or wType=='button') and ((widget.subtitle or '')~='' and 54 or 36)
                            or wType=='slider' and 48
                            or wType=='dropdown' and 48
                            or wType=='textbox' and 40
@@ -693,7 +707,7 @@ function UILib:Step()
 
                     -- labels
                     self:_Text(wid..'_lbl', wX+10, wY+8, widget.label, t.text, 7, 13)
-                    if widget.subtitle~='' then
+                    if (widget.subtitle or '')~='' then
                         self:_Text(wid..'_sub', wX+10, wY+24, widget.subtitle, t.subtext, 7, 11)
                     else
                         self:_HidePrefix(wid..'_sub')
@@ -709,7 +723,7 @@ function UILib:Step()
                     local slX=wX+10; local slY2=wY+28; local slW=wW-20; local slH=4
                     self:_RRect(wid..'_trk', slX, slY2, slW, slH, t.toggle_off, 6, 2)
                     local pct=(widget.value-widget.min)/(widget.max-widget.min)
-                    if pct>0 then self:_RRect(wid..'_fill', slX, slY2, math.max(4,slW*pct), slH, t.accent, 7, 2) end
+                    if pct>0.001 then self:_RRect(wid..'_fill', slX, slY2, math.max(2,slW*pct), slH, t.accent, 7, 2) end
                     -- thumb
                     local thX=slX+slW*pct-5
                     self:_RRect(wid..'_thumb', thX, slY2-3, 10, 10, Color3.fromRGB(255,255,255), 8, 5)
@@ -749,7 +763,7 @@ function UILib:Step()
                 -- ── BUTTON ──
                 elseif wType=='button' then
                     self:_Text(wid..'_lbl', wX+10, wY+8, widget.label, t.text, 7, 13)
-                    if widget.subtitle~='' then self:_Text(wid..'_sub', wX+10, wY+24, widget.subtitle, t.subtext, 7, 11) end
+                    if (widget.subtitle or '')~='' then self:_Text(wid..'_sub', wX+10, wY+24, widget.subtitle, t.subtext, 7, 11) end
                     -- click arrow indicator
                     self:_Text(wid..'_arr', wX+wW-18, wY+(itemH/2)-6, '>', t.subtext, 7, 12)
                     if click and isHover then
