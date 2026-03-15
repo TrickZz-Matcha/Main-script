@@ -547,13 +547,15 @@ function UILib:Step()
         local pX=cpX+8; local pY=cpY+22; local pW=cW2-16; local pH=cH2-50
         local hH=12; local palH=pH-hH-6
         draw('cp_pal','rect',Color3.fromHSV(cp.h,1,1),31,Vector2.new(pX,pY),Vector2.new(pW,palH),true)
+        -- white gradient: fully white on left (s=0), transparent on right (s=1)
         for i=1,8 do
             draw('cp_w'..i,'rect',Color3.fromRGB(255,255,255),32,Vector2.new(pX+(i-1)*pW/8,pY),Vector2.new(pW/8+1,palH),true)
-            setAlpha('cp_w'..i,(i-1)/7)
+            setAlpha('cp_w'..i, 1 - (i-1)/7)
         end
+        -- black gradient: transparent on top (v=1), fully black on bottom (v=0)
         for i=1,8 do
             draw('cp_b'..i,'rect',Color3.fromRGB(0,0,0),33,Vector2.new(pX,pY+(i-1)*palH/8),Vector2.new(pW,palH/8+1),true)
-            setAlpha('cp_b'..i,(i-1)/7)
+            setAlpha('cp_b'..i, (i-1)/7)
         end
         local hY=pY+palH+6
         local hues={Color3.fromRGB(255,0,0),Color3.fromRGB(255,255,0),Color3.fromRGB(0,255,0),Color3.fromRGB(0,255,255),Color3.fromRGB(0,0,255),Color3.fromRGB(255,0,255),Color3.fromRGB(255,0,0)}
