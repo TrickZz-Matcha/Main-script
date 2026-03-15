@@ -114,10 +114,11 @@ local function _getOrCreate(drawings, id, dType)
     return drawings[id]
 end
 
--- Safe property setter: silently ignores unsupported properties
+-- Safe property setter: direct assignment with pcall fallback
 local function _set(obj, prop, val)
     if obj == nil then return end
-    pcall(function() obj[prop] = val end)
+    local ok = pcall(function() obj[prop] = val end)
+    -- no-op if fails (unsupported property on this executor)
 end
 
 -- filled rounded rect using strip + 4 corner fans
@@ -133,7 +134,11 @@ function UILib:_RRect(id, x, y, w, h, col, z, r, alpha)
         if not o then return end
         _set(o,'Position',Vector2.new(rx,ry)); _set(o,'Size',Vector2.new(rw,rh))
         _set(o,'Filled',true); _set(o,'Color',col); _set(o,'ZIndex',z)
-        _set(o,'Transparency', 1 - alpha)  -- Drawing: 0=opaque, 1=transparent
+        if alpha < 0.99 then
+            _set(o,'Transparency', 1 - alpha)
+        else
+            _set(o,'Transparency', 0)  -- fully opaque
+        end
         _set(o,'Visible',true)
     end
     local function setTri(sid, a, b, c)
@@ -141,7 +146,11 @@ function UILib:_RRect(id, x, y, w, h, col, z, r, alpha)
         if not o then return end
         _set(o,'PointA',a); _set(o,'PointB',b); _set(o,'PointC',c)
         _set(o,'Filled',true); _set(o,'Color',col); _set(o,'ZIndex',z)
-        _set(o,'Transparency', 1 - alpha)  -- Drawing: 0=opaque, 1=transparent
+        if alpha < 0.99 then
+            _set(o,'Transparency', 1 - alpha)
+        else
+            _set(o,'Transparency', 0)  -- fully opaque
+        end
         _set(o,'Visible',true)
     end
     -- solid full base (guarantees zero gaps regardless of rounding)
@@ -211,7 +220,7 @@ function UILib:_RRectOutline(id, x, y, w, h, col, z, r, alpha)
         if not o then continue end
         _set(o,'From',seg[1]); _set(o,'To',seg[2]); _set(o,'Color',col); _set(o,'ZIndex',z)
         _set(o,'Thickness',1); _set(o,'Filled',1)
-        _set(o,'Transparency', 1-alpha); _set(o,'Visible',true)
+        _set(o,'Transparency', alpha >= 0.99 and 0 or (1-alpha)); _set(o,'Visible',true)
     end
 end
 
@@ -224,7 +233,8 @@ function UILib:_Text(id, x, y, text, col, z, size, center, outline, alpha)
     _set(o,'Color',col); _set(o,'ZIndex',z)
     _set(o,'Size',size or self._font_size or 13); _set(o,'Font',self._font or Drawing.Fonts.Plex)
     _set(o,'Center',center or false); _set(o,'Outline',outline or false)
-    _set(o,'Transparency', 1-(alpha or 1)); _set(o,'Visible',true)
+    local ta = alpha or 1
+    _set(o,'Transparency', ta >= 0.99 and 0 or (1-ta)); _set(o,'Visible',true)
 end
 
 -- pill toggle (rounded rect track + circle thumb)
@@ -245,7 +255,8 @@ function UILib:_Line(id, x1, y1, x2, y2, col, z, alpha)
     _set(o,'From',Vector2.new(x1,y1)); _set(o,'To',Vector2.new(x2,y2))
     _set(o,'Color',col); _set(o,'ZIndex',z)
     _set(o,'Thickness',1); _set(o,'Filled',1)
-    _set(o,'Transparency', 1-(alpha or 1)); _set(o,'Visible',true)
+    local ta = alpha or 1
+    _set(o,'Transparency', ta >= 0.99 and 0 or (1-ta)); _set(o,'Visible',true)
 end
 
 -- hide a single drawing
@@ -505,21 +516,13 @@ function UILib:Step()
         end
     end
 
-    -- ── MENU FADE (runs regardless of open state) ──
-    local mFade=clamp(1-(self._menu_toggled_at-(os.clock()-0.3))/0.3,0,1)
-    if mFade < 1.05 then
-        local opacity = math.abs((self._menu_open and 0 or 1) - (mFade*mFade*(3-2*mFade)))
-        self:_OpacityPrefix('menu_', opacity)
-        self:_OpacityPrefix('nav_',  opacity)
-        self:_OpacityPrefix('sec_',  opacity)
-    end
-    if not self._menu_open and mFade >= 1.05 then
+    -- ── MENU VISIBILITY ──
+    if not self._menu_open then
         self:_HidePrefix('menu_')
         self:_HidePrefix('nav_')
         self:_HidePrefix('sec_')
-        return  -- fully closed, nothing to render
+        return
     end
-    if not self._menu_open then return end  -- still fading out, skip render
 
     -- ── DRAG ──
     if held and self._menu_drag then
@@ -1012,7 +1015,7 @@ function UILib:Step()
         if click and not self:_InBounds(cpX2,cpY2,cpW,cpH) then self:_KillColorpicker(); click=false end
     end
 
-    -- (fade handled above early return)
+
 end
 
 return UILib
