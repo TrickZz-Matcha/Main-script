@@ -1,41 +1,44 @@
 --[[
     library.lua — matcha edition
-    Minimal, direct Drawing API usage. No abstractions that can silently fail.
-    FIX: Added nil guard for self.C in Step(), ensured C is always initialized before use.
+    Fixes:
+      1. local UILib — not a global, won't get wiped on environment restart
+      2. _G.UILib = UILib — exported to shared _G so any executor can read it
+      3. C defined after table creation — no nil risk on Drawing API init
+      4. Nil guard in Step() — safe even if called with stale self
 ]]
 
 local UILib = {
-    _drawings = {},
-    _tree     = {},
-    _tab_order= {},
-    _open_tab = nil,
-    _menu_open= false,
-    _menu_key = 'f1',
-    _inputs   = {['m1']={id=0x01,h=false,c=false},['m2']={id=0x02,h=false,c=false},['f1']={id=0x70,h=false,c=false},['f2']={id=0x71,h=false,c=false},['f3']={id=0x72,h=false,c=false},['f4']={id=0x73,h=false,c=false},['f5']={id=0x74,h=false,c=false},['f6']={id=0x75,h=false,c=false},['esc']={id=0x1B,h=false,c=false},['lshift']={id=0xA0,h=false,c=false},['rshift']={id=0xA1,h=false,c=false},['up']={id=0x26,h=false,c=false},['down']={id=0x28,h=false,c=false},['left']={id=0x25,h=false,c=false},['right']={id=0x27,h=false,c=false},['unbound']={id=0x08,h=false,c=false},['enter']={id=0x0D,h=false,c=false},['space']={id=0x20,h=false,c=false},['a']={id=0x41,h=false,c=false},['b']={id=0x42,h=false,c=false},['c']={id=0x43,h=false,c=false},['d']={id=0x44,h=false,c=false},['e']={id=0x45,h=false,c=false},['f']={id=0x46,h=false,c=false},['g']={id=0x47,h=false,c=false},['h']={id=0x48,h=false,c=false},['i']={id=0x49,h=false,c=false},['j']={id=0x4A,h=false,c=false},['k']={id=0x4B,h=false,c=false},['l']={id=0x4C,h=false,c=false},['m']={id=0x4D,h=false,c=false},['n']={id=0x4E,h=false,c=false},['o']={id=0x4F,h=false,c=false},['p']={id=0x50,h=false,c=false},['q']={id=0x51,h=false,c=false},['r']={id=0x52,h=false,c=false},['s']={id=0x53,h=false,c=false},['t']={id=0x54,h=false,c=false},['u']={id=0x55,h=false,c=false},['v']={id=0x56,h=false,c=false},['w']={id=0x57,h=false,c=false},['x']={id=0x58,h=false,c=false},['y']={id=0x59,h=false,c=false},['z']={id=0x5A,h=false,c=false},['0']={id=0x30,h=false,c=false},['1']={id=0x31,h=false,c=false},['2']={id=0x32,h=false,c=false},['3']={id=0x33,h=false,c=false},['4']={id=0x34,h=false,c=false},['5']={id=0x35,h=false,c=false},['6']={id=0x36,h=false,c=false},['7']={id=0x37,h=false,c=false},['8']={id=0x38,h=false,c=false},['9']={id=0x39,h=false,c=false},['minus']={id=0xBD,h=false,c=false},['period']={id=0xBE,h=false,c=false},['comma']={id=0xBC,h=false,c=false},['slash']={id=0xBF,h=false,c=false},['semicolon']={id=0xBA,h=false,c=false},['quote']={id=0xDE,h=false,c=false},['lbracket']={id=0xDB,h=false,c=false},['rbracket']={id=0xDD,h=false,c=false},['backslash']={id=0xDC,h=false,c=false}},
-    _drag     = nil,
-    _ctx      = nil,
-    _search   = '',
-    _scroll   = 0,
-    _scrollT  = 0,
+    _drawings    = {},
+    _tree        = {},
+    _tab_order   = {},
+    _open_tab    = nil,
+    _menu_open   = false,
+    _menu_key    = 'f1',
+    _inputs      = {['m1']={id=0x01,h=false,c=false},['m2']={id=0x02,h=false,c=false},['f1']={id=0x70,h=false,c=false},['f2']={id=0x71,h=false,c=false},['f3']={id=0x72,h=false,c=false},['f4']={id=0x73,h=false,c=false},['f5']={id=0x74,h=false,c=false},['f6']={id=0x75,h=false,c=false},['esc']={id=0x1B,h=false,c=false},['lshift']={id=0xA0,h=false,c=false},['rshift']={id=0xA1,h=false,c=false},['up']={id=0x26,h=false,c=false},['down']={id=0x28,h=false,c=false},['left']={id=0x25,h=false,c=false},['right']={id=0x27,h=false,c=false},['unbound']={id=0x08,h=false,c=false},['enter']={id=0x0D,h=false,c=false},['space']={id=0x20,h=false,c=false},['a']={id=0x41,h=false,c=false},['b']={id=0x42,h=false,c=false},['c']={id=0x43,h=false,c=false},['d']={id=0x44,h=false,c=false},['e']={id=0x45,h=false,c=false},['f']={id=0x46,h=false,c=false},['g']={id=0x47,h=false,c=false},['h']={id=0x48,h=false,c=false},['i']={id=0x49,h=false,c=false},['j']={id=0x4A,h=false,c=false},['k']={id=0x4B,h=false,c=false},['l']={id=0x4C,h=false,c=false},['m']={id=0x4D,h=false,c=false},['n']={id=0x4E,h=false,c=false},['o']={id=0x4F,h=false,c=false},['p']={id=0x50,h=false,c=false},['q']={id=0x51,h=false,c=false},['r']={id=0x52,h=false,c=false},['s']={id=0x53,h=false,c=false},['t']={id=0x54,h=false,c=false},['u']={id=0x55,h=false,c=false},['v']={id=0x56,h=false,c=false},['w']={id=0x57,h=false,c=false},['x']={id=0x58,h=false,c=false},['y']={id=0x59,h=false,c=false},['z']={id=0x5A,h=false,c=false},['0']={id=0x30,h=false,c=false},['1']={id=0x31,h=false,c=false},['2']={id=0x32,h=false,c=false},['3']={id=0x33,h=false,c=false},['4']={id=0x34,h=false,c=false},['5']={id=0x35,h=false,c=false},['6']={id=0x36,h=false,c=false},['7']={id=0x37,h=false,c=false},['8']={id=0x38,h=false,c=false},['9']={id=0x39,h=false,c=false},['minus']={id=0xBD,h=false,c=false},['period']={id=0xBE,h=false,c=false},['comma']={id=0xBC,h=false,c=false},['slash']={id=0xBF,h=false,c=false},['semicolon']={id=0xBA,h=false,c=false},['quote']={id=0xDE,h=false,c=false},['lbracket']={id=0xDB,h=false,c=false},['rbracket']={id=0xDD,h=false,c=false},['backslash']={id=0xDC,h=false,c=false}},
+    _drag        = nil,
+    _ctx         = nil,
+    _search      = '',
+    _scroll      = 0,
+    _scrollT     = 0,
     _slider_drag = nil,
-    _dd       = nil,
-    _cp       = nil,
-    _copied_color = nil,
-    _notifs   = {},
-    _notif_id = 0,
-    title    = 'matcha',
-    subtitle = '',
-    username = 'Player',
-    usertext = '',
+    _dd          = nil,
+    _cp          = nil,
+    _copied_color= nil,
+    _notifs      = {},
+    _notif_id    = 0,
+    title        = 'matcha',
+    subtitle     = '',
+    username     = 'Player',
+    usertext     = '',
     x = 100, y = 80, w = 580, h = 420,
-    _sw = 145,
-    _pad = 10,
-    _corner = 6,
-    _font = Drawing.Fonts.System,
-    _fsize = 13,
+    _sw          = 145,
+    _pad         = 10,
+    _corner      = 6,
+    _font        = Drawing.Fonts.System,
+    _fsize       = 13,
 }
 
--- ─── THEME (defined after UILib so it's guaranteed to exist) ─────────────────
+-- FIX 1: C defined after table so Drawing.Fonts.System is always ready
 UILib.C = {
     bg      = Color3.fromRGB(18,18,20),
     side    = Color3.fromRGB(22,22,25),
@@ -58,7 +61,6 @@ UILib.C = {
 
 local function clamp(v,a,b) return v<a and a or v>b and b or v end
 local function lerp(a,b,t) return a+(b-a)*t end
-local PI = math.pi
 
 local function hsvToRgb(h,s,v)
     local r,g,b
@@ -118,16 +120,6 @@ local function hidePrefix(p)
     end
 end
 
-local function setTr(id, tr)
-    if D[id] then D[id].Transparency=tr end
-end
-
-local function trPrefix(p, tr)
-    for k,o in pairs(D) do
-        if k:sub(1,#p)==p then o.Transparency=tr end
-    end
-end
-
 local function removePfx(p)
     for k,o in pairs(D) do
         if k:sub(1,#p)==p then o:Remove(); D[k]=nil end
@@ -163,9 +155,9 @@ end
 
 local function pollInput()
     for key,data in pairs(UILib._inputs) do
-        local ok,pressed=pcall(iskeypressed,data.id)
-        if not ok then pressed=false end
-        if pressed then
+        local ok,down=pcall(iskeypressed,data.id)
+        if not ok then down=false end
+        if down then
             data.c = not data.h
             data.h = true
         else
@@ -180,10 +172,10 @@ local function held(key)    return UILib._inputs[key] and UILib._inputs[key].h e
 
 -- ─── PUBLIC API ──────────────────────────────────────────────────────────────
 
-function UILib:SetMenuSize(s)   self.w=s.x or self.w; self.h=s.y or self.h end
-function UILib:GetMenuSize()    return Vector2.new(self.w,self.h) end
+function UILib:SetMenuSize(s)    self.w=s.x or self.w; self.h=s.y or self.h end
+function UILib:GetMenuSize()     return Vector2.new(self.w,self.h) end
 function UILib:SetMenuTitle(t,s) self.title=t; self.subtitle=s or '' end
-function UILib:SetProfile(u,s)  self.username=u; self.usertext=s or '' end
+function UILib:SetProfile(u,s)   self.username=u; self.usertext=s or '' end
 
 function UILib:CenterMenu()
     local ss=screen()
@@ -229,7 +221,7 @@ function UILib:_Section(tab,sname)
     return {
         Toggle=function(_,label,sub,val,cb,unsafe)
             local id=addWidget({type='toggle',label=label,sub=sub or '',value=val,cb=cb,unsafe=unsafe})
-            local r={
+            return {
                 Set=function(_,v) sec._widgets[id].value=v; if cb then cb(v) end end,
                 AddColorpicker=function(_,lbl,val2,ow,cb2)
                     sec._widgets[id].cp={label=lbl,value=val2 or Color3.new(1,1,1),ow=ow,cb=cb2}
@@ -240,7 +232,6 @@ function UILib:_Section(tab,sname)
                     return {Set=function(_,v,m) local kb=sec._widgets[id].kb; kb.value=v; kb.mode=m or kb.mode; if kcb then kcb(v,kb.mode) end end}
                 end,
             }
-            return r
         end,
         Slider=function(_,label,val,step,min,max,suffix,cb)
             local id=addWidget({type='slider',label=label,value=val,step=step,min=min,max=max,suffix=suffix or '',cb=cb})
@@ -251,7 +242,7 @@ function UILib:_Section(tab,sname)
             local id=addWidget({type='dropdown',label=label,value=val,choices=choices,multi=multi,cb=cb})
             return {
                 Set=function(_,v) sec._widgets[id].value=v; if cb then cb(v) end end,
-                UpdateChoices=function(_,c) sec._widgets[id].choices=c end
+                UpdateChoices=function(_,c) sec._widgets[id].choices=c end,
             }
         end,
         Button=function(_,label,sub,cb)
@@ -324,52 +315,40 @@ local function drawColorpicker(held2, click)
     local hY=pY+palH+6
     local hueColors={Color3.fromRGB(255,0,0),Color3.fromRGB(255,255,0),Color3.fromRGB(0,255,0),Color3.fromRGB(0,255,255),Color3.fromRGB(0,0,255),Color3.fromRGB(255,0,255),Color3.fromRGB(255,0,0)}
     for i=1,6 do
-        local c1,c2=hueColors[i],hueColors[i+1]
-        local segW=pW/6
+        local c1,c2=hueColors[i],hueColors[i+1]; local segW=pW/6
         for j=1,8 do
             local t2=(j-1)/7
             local lc=Color3.new(lerp(c1.R,c2.R,t2),lerp(c1.G,c2.G,t2),lerp(c1.B,c2.B,t2))
             sq('cp_h_'..i..'_'..j, pX+(i-1)*segW+(j-1)*(segW/8), hY, segW/8+1, hH, lc)
         end
     end
-    local dotX=pX+cp.s*pW-4; local dotY=pY+(1-cp.v)*palH-4
-    sq('cp_dot', dotX, dotY, 8, 8, UILib.C.white)
-    sq('cp_hdot', pX+cp.h*pW-3, hY, 6, hH, UILib.C.white)
+    sq('cp_dot',  pX+cp.s*pW-4,   pY+(1-cp.v)*palH-4, 8, 8,  UILib.C.white)
+    sq('cp_hdot', pX+cp.h*pW-3,   hY,                  6, hH, UILib.C.white)
     local nc=Color3.fromHSV(cp.h,cp.s,cp.v)
     sq('cp_sw', cx+8, cy+cH-14, cW-16, 10, nc)
     if cp.cb then cp.cb(nc) end
     local mp=mouse()
     if held2 then
-        if hit(pX,pY,pW,palH) then
-            cp.s=clamp((mp.X-pX)/pW,0,1); cp.v=1-clamp((mp.Y-pY)/palH,0,1)
-        end
-        if hit(pX,hY,pW,hH) then
-            cp.h=clamp((mp.X-pX)/pW,0,1)
-        end
+        if hit(pX,pY,pW,palH) then cp.s=clamp((mp.X-pX)/pW,0,1); cp.v=1-clamp((mp.Y-pY)/palH,0,1) end
+        if hit(pX,hY,pW,hH)   then cp.h=clamp((mp.X-pX)/pW,0,1) end
     end
-    if click and not hit(cx,cy,cW,cH) then
-        UILib._cp=nil; hidePrefix('cp_'); click=false
-    end
+    if click and not hit(cx,cy,cW,cH) then UILib._cp=nil; hidePrefix('cp_'); click=false end
     return click
 end
 
 -- ─── MAIN STEP ───────────────────────────────────────────────────────────────
 
 function UILib:Step()
-    -- FIX: Guard against C being nil (e.g. if called on a different self reference)
-    if not self.C then
-        self.C = UILib.C
-    end
-    if not self.C then return end  -- still nil, abort safely
+    -- FIX 2: nil guard — recover C if self somehow lost it
+    if not self.C then self.C = UILib.C end
+    if not self.C then return end
 
     local C=self.C
 
     pollInput()
-    local click=pressed('m1'); local heldM=held('m1'); local rclick=pressed('m2')
+    local click=pressed('m1'); local heldM=held('m1')
 
-    if pressed(self._menu_key) then
-        self._menu_open=not self._menu_open
-    end
+    if pressed(self._menu_key) then self._menu_open=not self._menu_open end
 
     pcall(setrobloxinput, not self._menu_open)
 
@@ -384,23 +363,18 @@ function UILib:Step()
             local nnx=nx0+(nW+8)*(1-fade); local nny=ny0+ntH
             rect('n_'..n.id..'_bg', nnx,nny,nW,nH, C.card, 1-fade)
             txt('n_'..n.id..'_t', nnx+8,nny+6, n.text, C.text, 12, false, false, 1-fade)
-            local p=clamp(el/n.time,0,1)
-            sq('n_'..n.id..'_p', nnx+2,nny+nH-3, (nW-4)*p, 2, C.accent, 1-fade)
+            sq('n_'..n.id..'_p', nnx+2,nny+nH-3, (nW-4)*clamp(el/n.time,0,1), 2, C.accent, 1-fade)
             ntH=ntH+nH+4
         end
         if el>n.time+0.4 then removePfx('n_'..n.id..'_'); table.remove(self._notifs,ni) end
     end
 
     if not self._menu_open then
-        hidePrefix('m_')
-        hidePrefix('nav_')
-        hidePrefix('s_')
-        return
+        hidePrefix('m_'); hidePrefix('nav_'); hidePrefix('s_'); return
     end
 
     if heldM and self._drag then
-        local mp=mouse()
-        self.x=mp.X-self._drag.X; self.y=mp.Y-self._drag.Y
+        local mp=mouse(); self.x=mp.X-self._drag.X; self.y=mp.Y-self._drag.Y
     elseif not heldM then
         self._drag=nil
     end
@@ -409,6 +383,7 @@ function UILib:Step()
     local sw,pad=self._sw,self._pad
     local tbH=32
 
+    -- OUTER BG + TITLE BAR
     rect('m_bg', x, y, w, h, C.bg)
     rect('m_tb', x, y, w, tbH, C.side)
     txt('m_title', x+pad+4, y+8, self.title, C.text, 14)
@@ -421,10 +396,12 @@ function UILib:Step()
         local mp=mouse(); self._drag=Vector2.new(mp.X-x,mp.Y-y); click=false
     end
 
+    -- SIDEBAR
     local sbX,sbY,sbH=x,y+tbH,h-tbH
     rect('m_sb', sbX, sbY, sw, sbH, C.side)
     ln('m_sdiv', sbX+sw, sbY, sbX+sw, sbY+sbH, C.div)
 
+    -- SEARCH BAR
     local srX,srY,srW,srH=sbX+pad,sbY+pad,sw-pad*2,26
     rect('m_sr', srX, srY, srW, srH, C.srch)
     ln('m_sr_t', srX, srY, srX+srW, srY, C.div)
@@ -432,9 +409,7 @@ function UILib:Step()
     ln('m_sr_l', srX, srY, srX, srY+srH, C.div)
     ln('m_sr_r', srX+srW, srY, srX+srW, srY+srH, C.div)
     local isSrch=self._ctx=='search'
-    if isSrch then
-        ln('m_sr_hl', srX, srY, srX+srW, srY, C.accent)
-    end
+    if isSrch then ln('m_sr_hl', srX, srY, srX+srW, srY, C.accent) end
     local srDisp=self._search=='' and (isSrch and '' or 'Search...') or self._search
     if isSrch then srDisp=self._search..(math.floor(os.clock()*2)%2==0 and '|' or ' ') end
     txt('m_sr_t2', srX+6, srY+7, srDisp, self._search=='' and C.sub or C.text, 12)
@@ -459,36 +434,32 @@ function UILib:Step()
         end
     end
 
+    -- NAV TABS
     local navY=srY+srH+6
     for _,tname in ipairs(self._tab_order) do
         local isOpen=self._open_tab==tname
-        local bg=isOpen and C.navhi or C.side
-        local tc=isOpen and C.text or C.sub
-        rect('nav_'..tname..'_bg', sbX+pad, navY, sw-pad*2, 28, bg)
-        if isOpen then
-            sq('nav_'..tname..'_bar', sbX+pad, navY+4, 3, 20, C.accent)
+        rect('nav_'..tname..'_bg', sbX+pad, navY, sw-pad*2, 28, isOpen and C.navhi or C.side)
+        if isOpen then sq('nav_'..tname..'_bar', sbX+pad, navY+4, 3, 20, C.accent)
         else hide('nav_'..tname..'_bar') end
-        txt('nav_'..tname..'_t', sbX+pad+10, navY+8, tname, tc, 12)
+        txt('nav_'..tname..'_t', sbX+pad+10, navY+8, tname, isOpen and C.text or C.sub, 12)
         if click and hit(sbX+pad,navY,sw-pad*2,28) and not isOpen then
             local old=self._tree[self._open_tab]
-            if old then
-                for _,sn in ipairs(old._sec_order or {}) do
-                    hidePrefix('s_'..self._open_tab..'_'..sn)
-                end
-            end
+            if old then for _,sn in ipairs(old._sec_order or {}) do hidePrefix('s_'..self._open_tab..'_'..sn) end end
             self._open_tab=tname; self._scroll=0; self._scrollT=0; click=false
         end
         navY=navY+28+3
     end
 
+    -- PROFILE FOOTER
     local pfY=sbY+sbH-38
     ln('m_pfl', sbX+6, pfY, sbX+sw-6, pfY, C.div)
     rect('m_pfbg', sbX, pfY, sw, 38, C.side)
     sq('m_pfav', sbX+pad, pfY+7, 24, 24, C.accdim)
     txt('m_pfav_l', sbX+pad+12, pfY+13, (self.username or 'P'):sub(1,1):upper(), C.accent, 11, true)
     txt('m_pfname', sbX+pad+28, pfY+8, self.username or '', C.text, 11)
-    txt('m_pfsub', sbX+pad+28, pfY+20, self.usertext or '', C.sub, 10)
+    txt('m_pfsub',  sbX+pad+28, pfY+20, self.usertext or '', C.sub, 10)
 
+    -- CONTENT AREA
     local cX=x+sw+1; local cY=y+tbH; local cW=w-sw-1; local cH=h-tbH
     rect('m_ct', cX, cY, cW, cH, C.content)
     local chH=34
@@ -496,6 +467,7 @@ function UILib:Step()
     txt('m_chtxt', cX+pad+4, cY+10, self._open_tab or '', C.text, 14)
     ln('m_chdiv', cX+6, cY+chH, cX+cW-6, cY+chH, C.div)
 
+    -- SCROLL
     if pressed('up')   then self._scrollT=math.max(0,self._scrollT-35) end
     if pressed('down') then self._scrollT=self._scrollT+35 end
     self._scroll=lerp(self._scroll, self._scrollT, 0.2)
@@ -503,17 +475,15 @@ function UILib:Step()
     local sq2=self._search:lower()
     local tabData=self._open_tab and self._tree[self._open_tab]
 
+    -- Hide inactive tabs
     for _,tname in ipairs(self._tab_order) do
         if tname~=self._open_tab then
             local td=self._tree[tname]
-            if td then
-                for _,sn in ipairs(td._sec_order or {}) do
-                    hidePrefix('s_'..tname..'_'..sn)
-                end
-            end
+            if td then for _,sn in ipairs(td._sec_order or {}) do hidePrefix('s_'..tname..'_'..sn) end end
         end
     end
 
+    -- WIDGETS
     if tabData then
         local wY=cY+chH+pad-math.floor(self._scroll)
         local wX=cX+pad; local wW=cW-pad*2
@@ -533,7 +503,7 @@ function UILib:Step()
                 local wid=slid..'_'..wi
                 local wType=w2.type
                 local hasSub=(w2.sub or '')~=''
-                local iH= (wType=='toggle' or wType=='button') and (hasSub and 52 or 34)
+                local iH=(wType=='toggle' or wType=='button') and (hasSub and 52 or 34)
                        or wType=='slider' and 46
                        or wType=='dropdown' and 46
                        or wType=='textbox' and 38
@@ -542,7 +512,6 @@ function UILib:Step()
                 if sq2~='' and not w2.label:lower():find(sq2,1,true) then
                     hidePrefix(wid); wY=wY+iH+4; continue
                 end
-
                 if wY+iH<=clipTop or wY>=clipBot then
                     hidePrefix(wid); wY=wY+iH+4; continue
                 end
@@ -551,7 +520,7 @@ function UILib:Step()
                 rect(wid..'_bg', wX, wY, wW, iH, isHov and C.cardhov or C.card)
 
                 if wType=='toggle' then
-                    local hasCP=w2.cp~=nil; local hasKB=w2.kb~=nil
+                    local hasCP=w2.cp~=nil
                     if hasCP then
                         local csz=18; local cx2=wX+wW-csz-8; local cy2=wY+(iH-csz)/2
                         sq(wid..'_cp', cx2, cy2, csz, csz, w2.cp.value)
@@ -679,9 +648,11 @@ function UILib:Step()
         self._scrollT=clamp(self._scrollT,0,maxScroll)
     end
 
+    -- POPUPS ON TOP
     click=drawDropdown(click)
     click=drawColorpicker(heldM, click)
 
+    -- REPAINT SIDEBAR ON TOP (no z-index in Drawing API)
     rect('m_sb2', sbX, sbY, sw, sbH, C.side)
     ln('m_sdiv2', sbX+sw, sbY, sbX+sw, sbY+sbH, C.div)
     rect('m_sr2', srX, srY, srW, srH, C.srch)
@@ -699,11 +670,13 @@ function UILib:Step()
     sq('m_pfav2', sbX+pad, pfY+7, 24, 24, C.accdim)
     txt('m_pfav_l2', sbX+pad+12, pfY+13, (self.username or 'P'):sub(1,1):upper(), C.accent, 11, true)
     txt('m_pfname2', sbX+pad+28, pfY+8, self.username or '', C.text, 11)
-    txt('m_pfsub2', sbX+pad+28, pfY+20, self.usertext or '', C.sub, 10)
+    txt('m_pfsub2',  sbX+pad+28, pfY+20, self.usertext or '', C.sub, 10)
     rect('m_chbg2', cX, cY, cW, chH, C.content)
     txt('m_chtxt2', cX+pad+4, cY+10, self._open_tab or '', C.text, 14)
     ln('m_chdiv2', cX+6, cY+chH, cX+cW-6, cY+chH, C.div)
     rect('m_bot', cX, cY+cH-2, cW, 4, C.bg)
 end
 
+-- FIX 3: export to _G so any executor sandbox can read it
+_G.UILib = UILib
 return UILib
