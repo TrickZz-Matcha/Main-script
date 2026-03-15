@@ -27,8 +27,7 @@ UILib = {
     _notifications_spawned = 0,
     _scroll_offset     = 0,   -- content scroll
     _scroll_target     = 0,
-    _scroll_delta      = 0,   -- accumulated wheel ticks
-    _wheel_conn        = nil, -- wheel event connections
+    _scroll_delta      = 0,   -- scroll accumulator
 
     -- profile shown in sidebar footer
     username  = 'Player',
@@ -436,7 +435,6 @@ end
 
 function UILib:Unload()
     self:_RemovePrefix('')
-    self._wheel_conn = nil
     pcall(setrobloxinput, true)
 end
 
@@ -447,37 +445,14 @@ end
 function UILib:Step()
     local t = self._t   -- theme shorthand
 
-    -- ── MOUSE WHEEL HOOK (connect once, fully pcall-wrapped) ──
-    if not self._wheel_conn then
-        self._wheel_conn = true  -- mark as attempted regardless of success
-        local lib = self
-
-        -- Try UserInputService first
-        pcall(function()
-            local UIS = game:GetService('UserInputService')
-            UIS.InputChanged:Connect(function(input)
-                if not lib._menu_open then return end
-                if input.UserInputType == Enum.UserInputType.MouseWheel then
-                    lib._scroll_delta = lib._scroll_delta - input.Position.Z
-                end
-            end)
-        end)
-
-        -- Also try Mouse.WheelForward/Backward as additional fallback
-        pcall(function()
-            local p = game:GetService('Players').LocalPlayer
-            local m = p and p:GetMouse()
-            if m and m.WheelForward then
-                m.WheelForward:Connect(function()
-                    if lib._menu_open then lib._scroll_delta = lib._scroll_delta - 1 end
-                end)
-            end
-            if m and m.WheelBackward then
-                m.WheelBackward:Connect(function()
-                    if lib._menu_open then lib._scroll_delta = lib._scroll_delta + 1 end
-                end)
-            end
-        end)
+    -- ── SCROLL: poll mouse wheel via getUserCFrame delta or iskeypressed ──
+    -- Use up/down arrows for scroll (no RBXScriptSignal needed, fully compatible)
+    if self._menu_open then
+        local scrollSpeed = 35
+        local ok1, up   = pcall(iskeypressed, 0x26)  -- UP arrow
+        local ok2, down = pcall(iskeypressed, 0x28)  -- DOWN arrow
+        if ok1 and up   then self._scroll_target = math.max(0, self._scroll_target - scrollSpeed) end
+        if ok2 and down then self._scroll_target = self._scroll_target + scrollSpeed end
     end
 
     -- ── INPUT ──
@@ -676,13 +651,8 @@ function UILib:Step()
     self:_Text('menu_chead', cX+pad+4, cY+10, self._open_tab or '', t.text, 16, 14, false, false)
     self:_Line('menu_chdiv', cX+6, cY+chH, cX+cW-6, cY+chH, t.divider, 16)
 
-    -- scroll via accumulated wheel delta (no bounds check needed, always consume)
-    if self._scroll_delta ~= 0 then
-        self._scroll_target = self._scroll_target + self._scroll_delta * 35
-        self._scroll_target = math.max(0, self._scroll_target)
-        self._scroll_delta = 0
-    end
-    self._scroll_offset = lerp(self._scroll_offset, self._scroll_target, 0.3)
+    -- smooth scroll lerp
+    self._scroll_offset = lerp(self._scroll_offset, self._scroll_target, 0.18)
 
     -- Hide all widgets for every tab that is NOT currently open
     for _, tname in ipairs(self._tab_order) do
