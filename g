@@ -325,21 +325,16 @@ function UILib:Step()
     -- Outer window with rounded corners (6px radius)
     -- Draw cross-pattern: wide center + tall center = rounded silhouette
     local _wr = 10
-    -- outer window body (cross pattern for rounded shape)
-    draw('m_bg',  'rect', C.bg, 1, Vector2.new(x+_wr, y),      Vector2.new(w-_wr*2, h),      true)
-    draw('m_bg2', 'rect', C.bg, 1, Vector2.new(x,     y+_wr),  Vector2.new(w,       h-_wr*2), true)
-    -- smooth outer corners - black matches game bg
     local _black = Color3.fromRGB(0,0,0)
-    maskCorner('m_bgctl', x+_wr,   y+_wr,   _wr, _black, 2, 'tl')
-    maskCorner('m_bgctr', x+w-_wr, y+_wr,   _wr, _black, 2, 'tr')
-    maskCorner('m_bgcbl', x+_wr,   y+h-_wr, _wr, _black, 2, 'bl')
-    maskCorner('m_bgcbr', x+w-_wr, y+h-_wr, _wr, _black, 2, 'br')
-    -- title bar (also cross pattern)
-    draw('m_tb',  'rect', C.side, 2, Vector2.new(x+_wr, y),       Vector2.new(w-_wr*2, tbH),       true)
-    draw('m_tb2', 'rect', C.side, 2, Vector2.new(x,     y+_wr),   Vector2.new(w,       tbH-_wr),   true)
-    -- title bar top corners: mask with black (game world bg)
-    maskCorner('m_tbctl', x+_wr,   y+_wr, _wr, _black, 4, 'tl')
-    maskCorner('m_tbctr', x+w-_wr, y+_wr, _wr, _black, 4, 'tr')
+    -- Draw full window bg first
+    draw('m_bg',  'rect', C.bg, 1, Vector2.new(x, y), Vector2.new(w, h), true)
+    -- Title bar full
+    draw('m_tb',  'rect', C.side, 2, Vector2.new(x, y), Vector2.new(w, tbH), true)
+    -- Now mask the 4 outer corners with black at HIGH ZIndex so they cut through everything
+    maskCorner('m_bgctl', x+_wr,   y+_wr,   _wr, _black, 100, 'tl')
+    maskCorner('m_bgctr', x+w-_wr, y+_wr,   _wr, _black, 100, 'tr')
+    maskCorner('m_bgcbl', x+_wr,   y+h-_wr, _wr, _black, 100, 'bl')
+    maskCorner('m_bgcbr', x+w-_wr, y+h-_wr, _wr, _black, 100, 'br')
     draw('m_ttl', 'text', C.text, 3, Vector2.new(x+pad+4,y+8), self.title,         false,false,14)
     local tW=textW(self.title,14)
     draw('m_sub', 'text', C.sub,  3, Vector2.new(x+pad+4+tW+6,y+10), self.subtitle, false,false,11)
