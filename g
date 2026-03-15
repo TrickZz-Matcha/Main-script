@@ -134,7 +134,7 @@ function UILib:_RRect(id, x, y, w, h, col, z, r, alpha)
         if not o then return end
         _set(o,'Position',Vector2.new(rx,ry)); _set(o,'Size',Vector2.new(rw,rh))
         _set(o,'Filled',true); _set(o,'Color',col); _set(o,'ZIndex',z)
-        if alpha < 0.99 then _set(o,'Transparency',alpha) else _set(o,'Transparency',1) end
+        _set(o,'Transparency', 1 - alpha)  -- Drawing: 0=opaque, 1=transparent
         _set(o,'Visible',true)
     end
     local function setTri(sid, a, b, c)
@@ -142,7 +142,7 @@ function UILib:_RRect(id, x, y, w, h, col, z, r, alpha)
         if not o then return end
         _set(o,'PointA',a); _set(o,'PointB',b); _set(o,'PointC',c)
         _set(o,'Filled',true); _set(o,'Color',col); _set(o,'ZIndex',z)
-        if alpha < 0.99 then _set(o,'Transparency',alpha) else _set(o,'Transparency',1) end
+        _set(o,'Transparency', 1 - alpha)  -- Drawing: 0=opaque, 1=transparent
         _set(o,'Visible',true)
     end
     -- strips
@@ -180,11 +180,12 @@ end
 
 -- set opacity for all sub-draws
 function UILib:_RRectOpacity(id, alpha)
+    -- alpha: 1=opaque  →  Drawing.Transparency = 1-alpha
     for _, s in ipairs({'_s0','_s1','_s2'}) do
-        local o=self._drawings[id..s]; if o then pcall(function() o.Transparency=alpha end) end
+        local o=self._drawings[id..s]; if o then pcall(function() o.Transparency=1-alpha end) end
     end
     for ci=1,4 do for i=1,FANS do
-        local o=self._drawings[id..'_c'..ci..'_'..i]; if o then pcall(function() o.Transparency=alpha end) end
+        local o=self._drawings[id..'_c'..ci..'_'..i]; if o then pcall(function() o.Transparency=1-alpha end) end
     end end
 end
 
@@ -206,7 +207,7 @@ function UILib:_RRectOutline(id, x, y, w, h, col, z, r, alpha)
         if not o then continue end
         _set(o,'From',seg[1]); _set(o,'To',seg[2]); _set(o,'Color',col); _set(o,'ZIndex',z)
         _set(o,'Thickness',1); _set(o,'Filled',1)
-        _set(o,'Transparency',alpha); _set(o,'Visible',true)
+        _set(o,'Transparency', 1-alpha); _set(o,'Visible',true)
     end
 end
 
@@ -219,7 +220,7 @@ function UILib:_Text(id, x, y, text, col, z, size, center, outline, alpha)
     _set(o,'Color',col); _set(o,'ZIndex',z)
     _set(o,'Size',size or self._font_size or 13); _set(o,'Font',self._font or Drawing.Fonts.Plex)
     _set(o,'Center',center or false); _set(o,'Outline',outline or false)
-    _set(o,'Transparency',alpha or 1); _set(o,'Visible',true)
+    _set(o,'Transparency', 1-(alpha or 1)); _set(o,'Visible',true)
 end
 
 -- pill toggle (rounded rect track + circle thumb)
@@ -240,7 +241,7 @@ function UILib:_Line(id, x1, y1, x2, y2, col, z, alpha)
     _set(o,'From',Vector2.new(x1,y1)); _set(o,'To',Vector2.new(x2,y2))
     _set(o,'Color',col); _set(o,'ZIndex',z)
     _set(o,'Thickness',1); _set(o,'Filled',1)
-    _set(o,'Transparency',alpha or 1); _set(o,'Visible',true)
+    _set(o,'Transparency', 1-(alpha or 1)); _set(o,'Visible',true)
 end
 
 -- hide a single drawing
@@ -257,8 +258,9 @@ end
 
 -- set opacity for all drawings with prefix
 function UILib:_OpacityPrefix(prefix, alpha)
+    -- alpha: 1=opaque, 0=transparent  →  Drawing.Transparency = 1-alpha
     for k,o in pairs(self._drawings) do
-        if k:sub(1,#prefix)==prefix then pcall(function() o.Transparency=alpha end) end
+        if k:sub(1,#prefix)==prefix then pcall(function() o.Transparency=1-alpha end) end
     end
 end
 
