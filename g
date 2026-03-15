@@ -48,7 +48,7 @@ UILib = {
     _menu_key   = 'f1',
 
     -- font
-    _font       = Drawing.Fonts.Plex,
+    _font       = Drawing.Fonts.System,
     _font_size  = 13,
 
     -- theming
@@ -580,7 +580,14 @@ function UILib:Step()
         end
         self:_Text('nav_'..tabName..'_txt', niX+12, niY+8, tabName, navTxt, 19, 12, false, false)
 
-        if click and self:_InBounds(niX,niY,niW,niH) then
+        if click and self:_InBounds(niX,niY,niW,niH) and self._open_tab ~= tabName then
+            -- immediately hide the old tab widgets before switching
+            local oldTD = self._open_tab and self._tree[self._open_tab]
+            if oldTD then
+                for _, sn in ipairs(oldTD._sec_order or {}) do
+                    self:_HidePrefix('sec_'..self._open_tab..'_'..sn)
+                end
+            end
             self._open_tab=tabName; self._tab_change_at=os.clock()
             self._scroll_offset=0; self._scroll_target=0; click=false
         end
@@ -622,8 +629,21 @@ function UILib:Step()
     end
     self._scroll_offset = lerp(self._scroll_offset, self._scroll_target, 0.2)
 
-    -- hide ALL section drawings every frame, then only show the open tab
-    self:_HidePrefix('sec_')
+    -- Hide all widgets for every tab that is NOT currently open
+    for _, tname in ipairs(self._tab_order) do
+        if tname ~= self._open_tab then
+            local td = self._tree[tname]
+            if td then
+                for _, sname in ipairs(td._sec_order or {}) do
+                    local sec = td._items[sname]
+                    if sec then
+                        local slid = 'sec_'..tname..'_'..sname
+                        self:_HidePrefix(slid)
+                    end
+                end
+            end
+        end
+    end
 
     -- render widgets for open tab
     local tabData = self._open_tab and self._tree[self._open_tab]
