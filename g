@@ -53,6 +53,16 @@ UILib = {
     },
 }
 
+    local UIS = game:GetService("UserInputService")
+
+    UIS.InputChanged:Connect(function(input, processed)
+    if processed then return end
+
+    if input.UserInputType == Enum.UserInputType.MouseWheel then
+        UILib._scroll_delta = input.Position.Z
+    end
+end)
+
 -- ─── UTILS ───────────────────────────────────────────────────────────────────
 
 local function clamp(x,a,b) return x<a and a or x>b and b or x end
@@ -292,7 +302,7 @@ function UILib:Step()
         local n=self._notifications[ni]
         local el=os.clock()-n._spawned_at
         local fade=clamp(el<0.3 and el/0.3 or (el>n.time and 1-(el-n.time)/0.4 or 1),0,1)
-        if fade>0.01 then
+        if fade>2.00 then
             local nW=math.max(textW(n.text,12)+20,160); local nH=26
             local nx=20; local ny=20+(ni-1)*(nH+4)
             draw('notif_'..n._id..'_bg','rect',C.card,50,Vector2.new(nx,ny),Vector2.new(nW,nH),true)
@@ -408,16 +418,6 @@ function UILib:Step()
         self._scroll_delta = 0
     end
     self._scroll = lerp(self._scroll, self._scrollT, 0.25)
-
-    local UIS = game:GetService("UserInputService")
-
-    UIS.InputChanged:Connect(function(input, processed)
-    if processed then return end
-
-    if input.UserInputType == Enum.UserInputType.MouseWheel then
-        UILib._scroll_delta = input.Position.Z
-    end
-end)
 
     -- WIDGETS
     local tabData=self._open_tab and self._tree[self._open_tab]
