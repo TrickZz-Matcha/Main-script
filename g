@@ -100,7 +100,7 @@ end
 -- ─────────────────────────────────────────────
 
 local PI   = math.pi
-local FANS = 7   -- triangles per corner quarter
+local FANS = 12  -- triangles per corner quarter (more = fewer gaps)
 
 local function _getOrCreate(drawings, id, dType)
     if not drawings[id] then
@@ -145,10 +145,15 @@ function UILib:_RRect(id, x, y, w, h, col, z, r, alpha)
         _set(o,'Transparency', 1 - alpha)  -- Drawing: 0=opaque, 1=transparent
         _set(o,'Visible',true)
     end
-    -- strips
-    setRect(id..'_s0', x,   y+r, w,   h-2*r)
-    setRect(id..'_s1', x+r, y,   w-2*r, r)
-    setRect(id..'_s2', x+r, y+h-r, w-2*r, r)
+    -- solid full base (guarantees zero gaps regardless of rounding)
+    setRect(id..'_base', x, y, w, h)
+    -- rounded corner masks: if r>0 we don't need strips, base covers everything
+    -- strips kept for explicit coverage of non-rounded rects
+    if r > 0 then
+        setRect(id..'_s0', x,     y+r-1, w,       h-2*r+2)
+        setRect(id..'_s1', x+r-1, y,     w-2*r+2, r+1)
+        setRect(id..'_s2', x+r-1, y+h-r, w-2*r+2, r+1)
+    end
     -- corners: TL, TR, BR, BL
     local corners = {
         {cx=x+r,   cy=y+r,   a0=PI},
@@ -170,7 +175,7 @@ end
 
 -- hide all sub-draws for a rounded rect
 function UILib:_HideRRect(id)
-    for _, s in ipairs({'_s0','_s1','_s2'}) do
+    for _, s in ipairs({'_base','_s0','_s1','_s2'}) do
         local o=self._drawings[id..s]; if o then pcall(function() o.Visible=false end) end
     end
     for ci=1,4 do for i=1,FANS do
@@ -181,7 +186,7 @@ end
 -- set opacity for all sub-draws
 function UILib:_RRectOpacity(id, alpha)
     -- alpha: 1=opaque  →  Drawing.Transparency = 1-alpha
-    for _, s in ipairs({'_s0','_s1','_s2'}) do
+    for _, s in ipairs({'_base','_s0','_s1','_s2'}) do
         local o=self._drawings[id..s]; if o then pcall(function() o.Transparency=1-alpha end) end
     end
     for ci=1,4 do for i=1,FANS do
