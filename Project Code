@@ -110,6 +110,9 @@ end
 
 -- filled rounded rect using strip + 4 corner fans
 function UILib:_RRect(id, x, y, w, h, col, z, r, alpha)
+    if not x or not y or not col or not z then return end
+    if not w or not h or w <= 0 or h <= 0 then return end
+    if r and r < 0 then r = 0 end
     r = math.min(r or self._corner_r, math.floor(math.min(w,h)/2))
     alpha = alpha or 1
     local function setRect(sid, rx, ry, rw, rh)
@@ -167,7 +170,10 @@ end
 
 -- unfilled rounded rect outline (4 lines)
 function UILib:_RRectOutline(id, x, y, w, h, col, z, r, alpha)
+    if not x or not y or not col or not z then return end
+    if not w or not h or w <= 0 or h <= 0 then return end
     r = math.min(r or self._corner_r, math.floor(math.min(w,h)/2))
+    if r < 0 then r = 0 end
     alpha = alpha or 1
     local segs = {
         {Vector2.new(x+r,y),       Vector2.new(x+w-r,y)},
@@ -177,15 +183,19 @@ function UILib:_RRectOutline(id, x, y, w, h, col, z, r, alpha)
     }
     for i,seg in ipairs(segs) do
         local o = _getOrCreate(self._drawings, id..'_ol'..i, 'Line')
-        o.From=seg[1]; o.To=seg[2]; o.Color=col; o.ZIndex=z; o.Thickness=1; o.Transparency=alpha; o.Visible=true
+        o.From=seg[1]; o.To=seg[2]; o.Color=col; o.ZIndex=z
+        pcall(function() o.Thickness=1 end)
+        pcall(function() o.Filled=1 end)
+        o.Transparency=alpha; o.Visible=true
     end
 end
 
 -- plain text
 function UILib:_Text(id, x, y, text, col, z, size, center, outline, alpha)
+    if not x or not y or not col or not z then return end
     local o = _getOrCreate(self._drawings, id, 'Text')
-    o.Position=Vector2.new(x,y); o.Text=text; o.Color=col; o.ZIndex=z
-    o.Size=size or self._font_size; o.Font=self._font
+    o.Position=Vector2.new(x,y); o.Text=tostring(text or ''); o.Color=col; o.ZIndex=z
+    o.Size=size or self._font_size or 13; o.Font=self._font or Drawing.Fonts.Plex
     o.Center=center or false; o.Outline=outline or false
     o.Transparency=alpha or 1; o.Visible=true
 end
@@ -201,9 +211,13 @@ end
 
 -- line
 function UILib:_Line(id, x1, y1, x2, y2, col, z, alpha)
+    if not x1 or not y1 or not x2 or not y2 or not col or not z then return end
     local o = _getOrCreate(self._drawings, id, 'Line')
     o.From=Vector2.new(x1,y1); o.To=Vector2.new(x2,y2)
-    o.Color=col; o.ZIndex=z; o.Thickness=1; o.Transparency=alpha or 1; o.Visible=true
+    o.Color=col; o.ZIndex=z
+    pcall(function() o.Thickness=1 end)
+    pcall(function() o.Filled=1 end)
+    o.Transparency=alpha or 1; o.Visible=true
 end
 
 -- hide a single drawing
@@ -466,7 +480,7 @@ function UILib:Step()
     -- flatten bottom corners of titlebar
     self:_RRect('menu_titlebar_bot', mx, my+tbH-self._corner_r, mw, self._corner_r, t.sidebar, 3, 0)
     self:_Text('menu_title_txt',  mx+pad+6,  my+10, self.title,    t.title_text, 4, 14, false, false)
-    self:_Text('menu_sub_txt',    mx+pad+6+self:_TBounds(self.title,14).X+6, my+12, self.subtitle, t.subtext, 4, 11, false, false)
+    local _stW=(self.title and self:_TBounds(self.title,14).X or 0); self:_Text('menu_sub_txt', mx+pad+6+_stW+6, my+12, self.subtitle or '', t.subtext, 4, 11, false, false)
     -- close / min dots
     self:_RRect('menu_dot_r', mx+mw-14, my+13, 10, 10, Color3.fromRGB(255,95,86),  4, 5)
     self:_RRect('menu_dot_y', mx+mw-28, my+13, 10, 10, Color3.fromRGB(255,189,46), 4, 5)
