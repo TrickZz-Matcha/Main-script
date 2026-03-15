@@ -436,10 +436,7 @@ end
 
 function UILib:Unload()
     self:_RemovePrefix('')
-    if self._wheel_conn then
-        for _, c in ipairs(self._wheel_conn) do pcall(function() c:Disconnect() end) end
-        self._wheel_conn = nil
-    end
+    self._wheel_conn = nil
     pcall(setrobloxinput, true)
 end
 
@@ -450,35 +447,37 @@ end
 function UILib:Step()
     local t = self._t   -- theme shorthand
 
-    -- ── MOUSE WHEEL HOOK (connect once via UserInputService) ──
+    -- ── MOUSE WHEEL HOOK (connect once, fully pcall-wrapped) ──
     if not self._wheel_conn then
-        local UIS = game:GetService('UserInputService')
-        self._wheel_conn = {}
-        local ok, conn = pcall(function()
-            return UIS.InputChanged:Connect(function(input, gameProcessed)
-                if not self._menu_open then return end
+        self._wheel_conn = true  -- mark as attempted regardless of success
+        local lib = self
+
+        -- Try UserInputService first
+        pcall(function()
+            local UIS = game:GetService('UserInputService')
+            UIS.InputChanged:Connect(function(input)
+                if not lib._menu_open then return end
                 if input.UserInputType == Enum.UserInputType.MouseWheel then
-                    self._scroll_delta = self._scroll_delta - input.Position.Z
+                    lib._scroll_delta = lib._scroll_delta - input.Position.Z
                 end
             end)
         end)
-        if ok and conn then
-            table.insert(self._wheel_conn, conn)
-        else
-            -- fallback: Mouse events
+
+        -- Also try Mouse.WheelForward/Backward as additional fallback
+        pcall(function()
             local p = game:GetService('Players').LocalPlayer
-            if p then
-                local m = p:GetMouse()
-                if m then
-                    table.insert(self._wheel_conn, m.WheelForward:Connect(function()
-                        if self._menu_open then self._scroll_delta = self._scroll_delta - 1 end
-                    end))
-                    table.insert(self._wheel_conn, m.WheelBackward:Connect(function()
-                        if self._menu_open then self._scroll_delta = self._scroll_delta + 1 end
-                    end))
-                end
+            local m = p and p:GetMouse()
+            if m and m.WheelForward then
+                m.WheelForward:Connect(function()
+                    if lib._menu_open then lib._scroll_delta = lib._scroll_delta - 1 end
+                end)
             end
-        end
+            if m and m.WheelBackward then
+                m.WheelBackward:Connect(function()
+                    if lib._menu_open then lib._scroll_delta = lib._scroll_delta + 1 end
+                end)
+            end
+        end)
     end
 
     -- ── INPUT ──
@@ -530,7 +529,7 @@ function UILib:Step()
     end
 
     if not self._menu_open then
-        self:_HidePrefix('menu_')
+        -- don't hide here - let the fade handler do it smoothly
         return
     end
 
@@ -1038,8 +1037,8 @@ function UILib:Step()
         self:_OpacityPrefix('nav_',  opacity)
         self:_OpacityPrefix('sec_',  opacity)
     end
-    -- when fully closed, hide everything completely
-    if not self._menu_open and mFade >= 1.0 then
+    -- when fully closed AND fade settled, hide everything
+    if not self._menu_open and mFade >= 1.05 then
         self:_HidePrefix('menu_')
         self:_HidePrefix('nav_')
         self:_HidePrefix('sec_')
