@@ -103,22 +103,10 @@ local FANS = 12  -- triangles per corner quarter (more = fewer gaps)
 
 local function _getOrCreate(drawings, id, dType)
     if not drawings[id] then
-        local ok, d = pcall(Drawing.new, dType)
-        if ok and d then
-            d.Visible = false
-            drawings[id] = d
-        else
-            return nil
-        end
+        drawings[id] = Drawing.new(dType)
+        drawings[id].Visible = false
     end
     return drawings[id]
-end
-
--- Safe property setter: direct assignment with pcall fallback
-local function _set(obj, prop, val)
-    if obj == nil then return end
-    local ok = pcall(function() obj[prop] = val end)
-    -- no-op if fails (unsupported property on this executor)
 end
 
 -- filled rounded rect using strip + 4 corner fans
@@ -131,27 +119,24 @@ function UILib:_RRect(id, x, y, w, h, col, z, r, alpha)
     local function setRect(sid, rx, ry, rw, rh)
         if not rw or rw<=0 or not rh or rh<=0 then return end
         local o = _getOrCreate(self._drawings, sid, 'Square')
-        if not o then return end
-        _set(o,'Position',Vector2.new(rx,ry)); _set(o,'Size',Vector2.new(rw,rh))
-        _set(o,'Filled',true); _set(o,'Color',col); _set(o,'ZIndex',z)
-        if alpha < 0.99 then
-            _set(o,'Transparency', 1 - alpha)
-        else
-            _set(o,'Transparency', 0)  -- fully opaque
-        end
-        _set(o,'Visible',true)
+        o.Position     = Vector2.new(rx, ry)
+        o.Size         = Vector2.new(rw, rh)
+        o.Filled       = true
+        o.Color        = col
+        o.ZIndex       = z
+        o.Transparency = alpha >= 0.99 and 0 or (1 - alpha)
+        o.Visible      = true
     end
     local function setTri(sid, a, b, c)
         local o = _getOrCreate(self._drawings, sid, 'Triangle')
-        if not o then return end
-        _set(o,'PointA',a); _set(o,'PointB',b); _set(o,'PointC',c)
-        _set(o,'Filled',true); _set(o,'Color',col); _set(o,'ZIndex',z)
-        if alpha < 0.99 then
-            _set(o,'Transparency', 1 - alpha)
-        else
-            _set(o,'Transparency', 0)  -- fully opaque
-        end
-        _set(o,'Visible',true)
+        o.PointA       = a
+        o.PointB       = b
+        o.PointC       = c
+        o.Filled       = true
+        o.Color        = col
+        o.ZIndex       = z
+        o.Transparency = alpha >= 0.99 and 0 or (1 - alpha)
+        o.Visible      = true
     end
     -- solid full base (guarantees zero gaps regardless of rounding)
     setRect(id..'_base', x, y, w, h)
@@ -184,21 +169,21 @@ end
 -- hide all sub-draws for a rounded rect
 function UILib:_HideRRect(id)
     for _, s in ipairs({'_base','_s0','_s1','_s2'}) do
-        local o=self._drawings[id..s]; if o then pcall(function() o.Visible=false end) end
+        local o=self._drawings[id..s]; if o then o.Visible=false end
     end
     for ci=1,4 do for i=1,FANS do
-        local o=self._drawings[id..'_c'..ci..'_'..i]; if o then pcall(function() o.Visible=false end) end
+        local o=self._drawings[id..'_c'..ci..'_'..i]; if o then o.Visible=false end
     end end
 end
 
 -- set opacity for all sub-draws
 function UILib:_RRectOpacity(id, alpha)
-    -- alpha: 1=opaque  →  Drawing.Transparency = 1-alpha
+    local t = alpha >= 0.99 and 0 or (1 - alpha)
     for _, s in ipairs({'_base','_s0','_s1','_s2'}) do
-        local o=self._drawings[id..s]; if o then pcall(function() o.Transparency=1-alpha end) end
+        local o=self._drawings[id..s]; if o then o.Transparency=t end
     end
     for ci=1,4 do for i=1,FANS do
-        local o=self._drawings[id..'_c'..ci..'_'..i]; if o then pcall(function() o.Transparency=1-alpha end) end
+        local o=self._drawings[id..'_c'..ci..'_'..i]; if o then o.Transparency=t end
     end end
 end
 
@@ -218,9 +203,13 @@ function UILib:_RRectOutline(id, x, y, w, h, col, z, r, alpha)
     for i,seg in ipairs(segs) do
         local o = _getOrCreate(self._drawings, id..'_ol'..i, 'Line')
         if not o then continue end
-        _set(o,'From',seg[1]); _set(o,'To',seg[2]); _set(o,'Color',col); _set(o,'ZIndex',z)
-        _set(o,'Thickness',1); _set(o,'Filled',1)
-        _set(o,'Transparency', alpha >= 0.99 and 0 or (1-alpha)); _set(o,'Visible',true)
+        o.From        = seg[1]
+        o.To          = seg[2]
+        o.Color       = col
+        o.ZIndex      = z
+        o.Thickness   = 1
+        o.Transparency = alpha >= 0.99 and 0 or (1 - alpha)
+        o.Visible     = true
     end
 end
 
@@ -228,13 +217,17 @@ end
 function UILib:_Text(id, x, y, text, col, z, size, center, outline, alpha)
     if not x or not y or not col or not z then return end
     local o = _getOrCreate(self._drawings, id, 'Text')
-    if not o then return end
-    _set(o,'Position',Vector2.new(x,y)); _set(o,'Text',tostring(text or ''))
-    _set(o,'Color',col); _set(o,'ZIndex',z)
-    _set(o,'Size',size or self._font_size or 13); _set(o,'Font',self._font or Drawing.Fonts.Plex)
-    _set(o,'Center',center or false); _set(o,'Outline',outline or false)
-    local ta = alpha or 1
-    _set(o,'Transparency', ta >= 0.99 and 0 or (1-ta)); _set(o,'Visible',true)
+    o.Position    = Vector2.new(x, y)
+    o.Text        = tostring(text or '')
+    o.Color       = col
+    o.ZIndex      = z
+    o.Size        = size or self._font_size or 13
+    o.Font        = self._font or Drawing.Fonts.System
+    o.Center      = center or false
+    o.Outline     = outline or false
+    local ta      = alpha or 1
+    o.Transparency = ta >= 0.99 and 0 or (1 - ta)
+    o.Visible     = true
 end
 
 -- pill toggle (rounded rect track + circle thumb)
@@ -251,31 +244,33 @@ end
 function UILib:_Line(id, x1, y1, x2, y2, col, z, alpha)
     if not x1 or not y1 or not x2 or not y2 or not col or not z then return end
     local o = _getOrCreate(self._drawings, id, 'Line')
-    if not o then return end
-    _set(o,'From',Vector2.new(x1,y1)); _set(o,'To',Vector2.new(x2,y2))
-    _set(o,'Color',col); _set(o,'ZIndex',z)
-    _set(o,'Thickness',1); _set(o,'Filled',1)
-    local ta = alpha or 1
-    _set(o,'Transparency', ta >= 0.99 and 0 or (1-ta)); _set(o,'Visible',true)
+    o.From        = Vector2.new(x1, y1)
+    o.To          = Vector2.new(x2, y2)
+    o.Color       = col
+    o.ZIndex      = z
+    o.Thickness   = 1
+    local la = alpha or 1
+    o.Transparency = la >= 0.99 and 0 or (1 - la)
+    o.Visible     = true
 end
 
 -- hide a single drawing
 function UILib:_Hide(id)
-    local o=self._drawings[id]; if o then pcall(function() o.Visible=false end) end
+    local o=self._drawings[id]; if o then o.Visible=false end
 end
 
 -- hide all drawings whose key starts with prefix
 function UILib:_HidePrefix(prefix)
     for k,o in pairs(self._drawings) do
-        if k:sub(1,#prefix)==prefix then pcall(function() o.Visible=false end) end
+        if k:sub(1,#prefix)==prefix then o.Visible=false end
     end
 end
 
 -- set opacity for all drawings with prefix
 function UILib:_OpacityPrefix(prefix, alpha)
-    -- alpha: 1=opaque, 0=transparent  →  Drawing.Transparency = 1-alpha
+    local t = alpha >= 0.99 and 0 or (1 - alpha)
     for k,o in pairs(self._drawings) do
-        if k:sub(1,#prefix)==prefix then pcall(function() o.Transparency=1-alpha end) end
+        if k:sub(1,#prefix)==prefix then o.Transparency=t end
     end
 end
 
