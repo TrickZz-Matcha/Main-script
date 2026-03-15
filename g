@@ -113,42 +113,34 @@ local function setAlpha(id, a)
     local o=D[id]; if o then o.Transparency=a end
 end
 
--- Smooth rounded corners using Bresenham-style circle scanline masking
--- For each row in the corner, mask the area outside the circle with bg color
+-- Smooth rounded corners: for each row in corner, mask outside pixels with bg color
+-- Uses circle equation: x = sqrt(r^2 - y^2)
 local function roundedCorners(id, x, y, w, h, r, bg, zi)
     if not r or r <= 0 then return end
-    -- For each row y offset 0..r-1, calculate how many pixels to mask from each corner
     for dy = 0, r-1 do
-        -- distance from center at this row
-        local dx = math.floor(math.sqrt(math.max(0, r*r - (r-1-dy)*(r-1-dy))))
-        local maskW = r - dx
-        if maskW > 0 then
-            -- top-left corner: mask from left edge
-            draw(id..'_ctl_'..dy,'rect',bg,zi,Vector2.new(x, y+dy),Vector2.new(maskW,1),true)
-            -- top-right corner: mask from right edge
-            draw(id..'_ctr_'..dy,'rect',bg,zi,Vector2.new(x+w-maskW, y+dy),Vector2.new(maskW,1),true)
-            -- bottom-left corner
-            draw(id..'_cbl_'..dy,'rect',bg,zi,Vector2.new(x, y+h-1-dy),Vector2.new(maskW,1),true)
-            -- bottom-right corner
-            draw(id..'_cbr_'..dy,'rect',bg,zi,Vector2.new(x+w-maskW, y+h-1-dy),Vector2.new(maskW,1),true)
+        local inner = math.floor(math.sqrt(math.max(0, r*r - (r-dy-1)*(r-dy-1) )))
+        local maskW = r - inner
+        if maskW >= 1 then
+            -- top row dy: mask left and right
+            draw(id..'_tl'..dy,'rect',bg,zi,Vector2.new(x,         y+dy),      Vector2.new(maskW,1),true)
+            draw(id..'_tr'..dy,'rect',bg,zi,Vector2.new(x+w-maskW, y+dy),      Vector2.new(maskW,1),true)
+            -- bottom row dy: mask left and right
+            draw(id..'_bl'..dy,'rect',bg,zi,Vector2.new(x,         y+h-1-dy),  Vector2.new(maskW,1),true)
+            draw(id..'_br'..dy,'rect',bg,zi,Vector2.new(x+w-maskW, y+h-1-dy),  Vector2.new(maskW,1),true)
         end
     end
 end
 
--- Keep maskCorner as alias for outer window corners (single quadrant)
-local function maskCorner(id, cx, cy, r, bg, zi, quadrant)
+local function maskCorner(id, cx, cy, r, bg, zi, q)
+    -- single quadrant corner mask (for outer window edge)
     for dy = 0, r-1 do
-        local dx = math.floor(math.sqrt(math.max(0, r*r - (r-1-dy)*(r-1-dy))))
-        local maskW = r - dx
-        if maskW > 0 then
-            if quadrant == 'tl' then
-                draw(id..'_'..dy,'rect',bg,zi,Vector2.new(cx-r, cy-r+dy),Vector2.new(maskW,1),true)
-            elseif quadrant == 'tr' then
-                draw(id..'_'..dy,'rect',bg,zi,Vector2.new(cx+dx, cy-r+dy),Vector2.new(maskW,1),true)
-            elseif quadrant == 'bl' then
-                draw(id..'_'..dy,'rect',bg,zi,Vector2.new(cx-r, cy+dy),Vector2.new(maskW,1),true)
-            elseif quadrant == 'br' then
-                draw(id..'_'..dy,'rect',bg,zi,Vector2.new(cx+dx, cy+dy),Vector2.new(maskW,1),true)
+        local inner = math.floor(math.sqrt(math.max(0, r*r - (r-dy-1)*(r-dy-1))))
+        local maskW = r - inner
+        if maskW >= 1 then
+            if q=='tl' then draw(id..dy,'rect',bg,zi,Vector2.new(cx-r,     cy-r+dy), Vector2.new(maskW,1),true)
+            elseif q=='tr' then draw(id..dy,'rect',bg,zi,Vector2.new(cx+inner, cy-r+dy), Vector2.new(maskW,1),true)
+            elseif q=='bl' then draw(id..dy,'rect',bg,zi,Vector2.new(cx-r,     cy+dy),   Vector2.new(maskW,1),true)
+            elseif q=='br' then draw(id..dy,'rect',bg,zi,Vector2.new(cx+inner, cy+dy),   Vector2.new(maskW,1),true)
             end
         end
     end
@@ -336,15 +328,16 @@ function UILib:Step()
     draw('m_bg',  'rect', C.bg, 1, Vector2.new(x+_wr, y),      Vector2.new(w-_wr*2, h),   true)  -- tall center
     draw('m_bg2', 'rect', C.bg, 1, Vector2.new(x,      y+_wr), Vector2.new(w,       h-_wr*2), true)  -- wide center
     -- smooth outer window corners - mask with black (game bg approximation)
-    maskCorner('m_bg_ctl', x+_wr,   y+_wr,   _wr, Color3.fromRGB(0,0,0), 0, 'tl')
-    maskCorner('m_bg_ctr', x+w-_wr, y+_wr,   _wr, Color3.fromRGB(0,0,0), 0, 'tr')
-    maskCorner('m_bg_cbl', x+_wr,   y+h-_wr, _wr, Color3.fromRGB(0,0,0), 0, 'bl')
-    maskCorner('m_bg_cbr', x+w-_wr, y+h-_wr, _wr, Color3.fromRGB(0,0,0), 0, 'br')
+    -- outer window corners: use black to blend with game background
+    maskCorner('m_bgctl', x+_wr,   y+_wr,   _wr, Color3.fromRGB(0,0,0), 2, 'tl')
+    maskCorner('m_bgctr', x+w-_wr, y+_wr,   _wr, Color3.fromRGB(0,0,0), 2, 'tr')
+    maskCorner('m_bgcbl', x+_wr,   y+h-_wr, _wr, Color3.fromRGB(0,0,0), 2, 'bl')
+    maskCorner('m_bgcbr', x+w-_wr, y+h-_wr, _wr, Color3.fromRGB(0,0,0), 2, 'br')
     draw('m_tb',  'rect', C.side, 2, Vector2.new(x+_wr, y),        Vector2.new(w-_wr*2, tbH), true)
     draw('m_tb2', 'rect', C.side, 2, Vector2.new(x,     y+_wr),    Vector2.new(w,       tbH-_wr), true)
     -- title bar top smooth corners
-    maskCorner('m_tb_ctl', x+_wr,   y+_wr, _wr, C.bg, 3, 'tl')
-    maskCorner('m_tb_ctr', x+w-_wr, y+_wr, _wr, C.bg, 3, 'tr')
+    maskCorner('m_tbctl', x+_wr,   y+_wr, _wr, C.bg, 4, 'tl')
+    maskCorner('m_tbctr', x+w-_wr, y+_wr, _wr, C.bg, 4, 'tr')
     draw('m_ttl', 'text', C.text, 3, Vector2.new(x+pad+4,y+8), self.title,         false,false,14)
     local tW=textW(self.title,14)
     draw('m_sub', 'text', C.sub,  3, Vector2.new(x+pad+4+tW+6,y+10), self.subtitle, false,false,11)
