@@ -325,16 +325,13 @@ function UILib:Step()
     -- Outer window with rounded corners (6px radius)
     -- Draw cross-pattern: wide center + tall center = rounded silhouette
     local _wr = 10
-    local _black = Color3.fromRGB(0,0,0)
-    -- Draw full window bg first
-    draw('m_bg',  'rect', C.bg, 1, Vector2.new(x, y), Vector2.new(w, h), true)
-    -- Title bar full
-    draw('m_tb',  'rect', C.side, 2, Vector2.new(x, y), Vector2.new(w, tbH), true)
-    -- Now mask the 4 outer corners with black at HIGH ZIndex so they cut through everything
-    maskCorner('m_bgctl', x+_wr,   y+_wr,   _wr, _black, 100, 'tl')
-    maskCorner('m_bgctr', x+w-_wr, y+_wr,   _wr, _black, 100, 'tr')
-    maskCorner('m_bgcbl', x+_wr,   y+h-_wr, _wr, _black, 100, 'bl')
-    maskCorner('m_bgcbr', x+w-_wr, y+h-_wr, _wr, _black, 100, 'br')
+    -- Window background + title bar
+    draw('m_bg', 'rect', C.bg,   1, Vector2.new(x, y), Vector2.new(w, h),   true)
+    draw('m_tb', 'rect', C.side, 2, Vector2.new(x, y), Vector2.new(w, tbH), true)
+    -- Round the outer window: mask corners with C.bg (window color bleeds into corners - acceptable)
+    roundedCorners('m_outer', x, y, w, h,   _wr, C.bg,   3)
+    -- Round top of title bar: mask top corners with C.side so curve uses title bar color
+    roundedCorners('m_tbtop', x, y, w, tbH, _wr, C.side, 4)
     draw('m_ttl', 'text', C.text, 3, Vector2.new(x+pad+4,y+8), self.title,         false,false,14)
     local tW=textW(self.title,14)
     draw('m_sub', 'text', C.sub,  3, Vector2.new(x+pad+4+tW+6,y+10), self.subtitle, false,false,11)
