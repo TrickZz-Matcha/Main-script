@@ -134,14 +134,16 @@ function UILib:_RRect(id, x, y, w, h, col, z, r, alpha)
         if not o then return end
         _set(o,'Position',Vector2.new(rx,ry)); _set(o,'Size',Vector2.new(rw,rh))
         _set(o,'Filled',true); _set(o,'Color',col); _set(o,'ZIndex',z)
-        _set(o,'Transparency',alpha); _set(o,'Visible',true)
+        if alpha < 0.99 then _set(o,'Transparency',alpha) else _set(o,'Transparency',1) end
+        _set(o,'Visible',true)
     end
     local function setTri(sid, a, b, c)
         local o = _getOrCreate(self._drawings, sid, 'Triangle')
         if not o then return end
         _set(o,'PointA',a); _set(o,'PointB',b); _set(o,'PointC',c)
         _set(o,'Filled',true); _set(o,'Color',col); _set(o,'ZIndex',z)
-        _set(o,'Transparency',alpha); _set(o,'Visible',true)
+        if alpha < 0.99 then _set(o,'Transparency',alpha) else _set(o,'Transparency',1) end
+        _set(o,'Visible',true)
     end
     -- strips
     setRect(id..'_s0', x,   y+r, w,   h-2*r)
@@ -441,19 +443,33 @@ end
 function UILib:Step()
     local t = self._t   -- theme shorthand
 
-    -- ── MOUSE WHEEL HOOK (connect once) ──
+    -- ── MOUSE WHEEL HOOK (connect once via UserInputService) ──
     if not self._wheel_conn then
-        local p = game:GetService('Players').LocalPlayer
-        if p then
-            local m = p:GetMouse()
-            if m then
-                self._wheel_conn = {}
-                table.insert(self._wheel_conn, m.WheelForward:Connect(function()
-                    if self._menu_open then self._scroll_delta = self._scroll_delta - 1 end
-                end))
-                table.insert(self._wheel_conn, m.WheelBackward:Connect(function()
-                    if self._menu_open then self._scroll_delta = self._scroll_delta + 1 end
-                end))
+        local UIS = game:GetService('UserInputService')
+        self._wheel_conn = {}
+        local ok, conn = pcall(function()
+            return UIS.InputChanged:Connect(function(input, gameProcessed)
+                if not self._menu_open then return end
+                if input.UserInputType == Enum.UserInputType.MouseWheel then
+                    self._scroll_delta = self._scroll_delta - input.Position.Z
+                end
+            end)
+        end)
+        if ok and conn then
+            table.insert(self._wheel_conn, conn)
+        else
+            -- fallback: Mouse events
+            local p = game:GetService('Players').LocalPlayer
+            if p then
+                local m = p:GetMouse()
+                if m then
+                    table.insert(self._wheel_conn, m.WheelForward:Connect(function()
+                        if self._menu_open then self._scroll_delta = self._scroll_delta - 1 end
+                    end))
+                    table.insert(self._wheel_conn, m.WheelBackward:Connect(function()
+                        if self._menu_open then self._scroll_delta = self._scroll_delta + 1 end
+                    end))
+                end
             end
         end
     end
@@ -654,13 +670,13 @@ function UILib:Step()
     self:_Text('menu_chead', cX+pad+4, cY+10, self._open_tab or '', t.text, 16, 14, false, false)
     self:_Line('menu_chdiv', cX+6, cY+chH, cX+cW-6, cY+chH, t.divider, 16)
 
-    -- scroll via accumulated wheel delta
-    if self._scroll_delta ~= 0 and self:_InBounds(cX,cY,cW,cH) then
-        self._scroll_target = self._scroll_target + self._scroll_delta * 30
+    -- scroll via accumulated wheel delta (no bounds check needed, always consume)
+    if self._scroll_delta ~= 0 then
+        self._scroll_target = self._scroll_target + self._scroll_delta * 35
         self._scroll_target = math.max(0, self._scroll_target)
         self._scroll_delta = 0
     end
-    self._scroll_offset = lerp(self._scroll_offset, self._scroll_target, 0.25)
+    self._scroll_offset = lerp(self._scroll_offset, self._scroll_target, 0.3)
 
     -- Hide all widgets for every tab that is NOT currently open
     for _, tname in ipairs(self._tab_order) do
@@ -1014,6 +1030,12 @@ function UILib:Step()
         self:_OpacityPrefix('menu_', opacity)
         self:_OpacityPrefix('nav_',  opacity)
         self:_OpacityPrefix('sec_',  opacity)
+    end
+    -- when fully closed, hide everything completely
+    if not self._menu_open and mFade >= 1.0 then
+        self:_HidePrefix('menu_')
+        self:_HidePrefix('nav_')
+        self:_HidePrefix('sec_')
     end
 end
 
