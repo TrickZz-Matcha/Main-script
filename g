@@ -1,56 +1,57 @@
 --[[
     library.lua — matcha edition
     Minimal, direct Drawing API usage. No abstractions that can silently fail.
+    FIX: Added nil guard for self.C in Step(), ensured C is always initialized before use.
 ]]
 
-UILib = {
+local UILib = {
     _drawings = {},
     _tree     = {},
     _tab_order= {},
     _open_tab = nil,
-    _menu_open= false,  -- START CLOSED, F1 opens it
+    _menu_open= false,
     _menu_key = 'f1',
     _inputs   = {['m1']={id=0x01,h=false,c=false},['m2']={id=0x02,h=false,c=false},['f1']={id=0x70,h=false,c=false},['f2']={id=0x71,h=false,c=false},['f3']={id=0x72,h=false,c=false},['f4']={id=0x73,h=false,c=false},['f5']={id=0x74,h=false,c=false},['f6']={id=0x75,h=false,c=false},['esc']={id=0x1B,h=false,c=false},['lshift']={id=0xA0,h=false,c=false},['rshift']={id=0xA1,h=false,c=false},['up']={id=0x26,h=false,c=false},['down']={id=0x28,h=false,c=false},['left']={id=0x25,h=false,c=false},['right']={id=0x27,h=false,c=false},['unbound']={id=0x08,h=false,c=false},['enter']={id=0x0D,h=false,c=false},['space']={id=0x20,h=false,c=false},['a']={id=0x41,h=false,c=false},['b']={id=0x42,h=false,c=false},['c']={id=0x43,h=false,c=false},['d']={id=0x44,h=false,c=false},['e']={id=0x45,h=false,c=false},['f']={id=0x46,h=false,c=false},['g']={id=0x47,h=false,c=false},['h']={id=0x48,h=false,c=false},['i']={id=0x49,h=false,c=false},['j']={id=0x4A,h=false,c=false},['k']={id=0x4B,h=false,c=false},['l']={id=0x4C,h=false,c=false},['m']={id=0x4D,h=false,c=false},['n']={id=0x4E,h=false,c=false},['o']={id=0x4F,h=false,c=false},['p']={id=0x50,h=false,c=false},['q']={id=0x51,h=false,c=false},['r']={id=0x52,h=false,c=false},['s']={id=0x53,h=false,c=false},['t']={id=0x54,h=false,c=false},['u']={id=0x55,h=false,c=false},['v']={id=0x56,h=false,c=false},['w']={id=0x57,h=false,c=false},['x']={id=0x58,h=false,c=false},['y']={id=0x59,h=false,c=false},['z']={id=0x5A,h=false,c=false},['0']={id=0x30,h=false,c=false},['1']={id=0x31,h=false,c=false},['2']={id=0x32,h=false,c=false},['3']={id=0x33,h=false,c=false},['4']={id=0x34,h=false,c=false},['5']={id=0x35,h=false,c=false},['6']={id=0x36,h=false,c=false},['7']={id=0x37,h=false,c=false},['8']={id=0x38,h=false,c=false},['9']={id=0x39,h=false,c=false},['minus']={id=0xBD,h=false,c=false},['period']={id=0xBE,h=false,c=false},['comma']={id=0xBC,h=false,c=false},['slash']={id=0xBF,h=false,c=false},['semicolon']={id=0xBA,h=false,c=false},['quote']={id=0xDE,h=false,c=false},['lbracket']={id=0xDB,h=false,c=false},['rbracket']={id=0xDD,h=false,c=false},['backslash']={id=0xDC,h=false,c=false}},
     _drag     = nil,
-    _ctx      = nil,     -- focused input id
+    _ctx      = nil,
     _search   = '',
     _scroll   = 0,
     _scrollT  = 0,
     _slider_drag = nil,
-    _dd       = nil,     -- active dropdown
-    _cp       = nil,     -- active colorpicker
+    _dd       = nil,
+    _cp       = nil,
     _copied_color = nil,
     _notifs   = {},
     _notif_id = 0,
-    -- layout
     title    = 'matcha',
     subtitle = '',
     username = 'Player',
     usertext = '',
     x = 100, y = 80, w = 580, h = 420,
-    _sw = 145,   -- sidebar width
+    _sw = 145,
     _pad = 10,
     _corner = 6,
     _font = Drawing.Fonts.System,
     _fsize = 13,
-    -- theme
-    C = {
-        bg      = Color3.fromRGB(18,18,20),
-        side    = Color3.fromRGB(22,22,25),
-        content = Color3.fromRGB(26,26,30),
-        card    = Color3.fromRGB(32,32,38),
-        cardhov = Color3.fromRGB(40,40,48),
-        accent  = Color3.fromRGB(80,200,120),
-        accdim  = Color3.fromRGB(30,80,50),
-        text    = Color3.fromRGB(240,240,245),
-        sub     = Color3.fromRGB(110,110,120),
-        div     = Color3.fromRGB(40,40,48),
-        navhi   = Color3.fromRGB(36,36,44),
-        trkoff  = Color3.fromRGB(55,55,65),
-        srch    = Color3.fromRGB(28,28,34),
-        white   = Color3.fromRGB(255,255,255),
-        black   = Color3.fromRGB(0,0,0),
-    },
+}
+
+-- ─── THEME (defined after UILib so it's guaranteed to exist) ─────────────────
+UILib.C = {
+    bg      = Color3.fromRGB(18,18,20),
+    side    = Color3.fromRGB(22,22,25),
+    content = Color3.fromRGB(26,26,30),
+    card    = Color3.fromRGB(32,32,38),
+    cardhov = Color3.fromRGB(40,40,48),
+    accent  = Color3.fromRGB(80,200,120),
+    accdim  = Color3.fromRGB(30,80,50),
+    text    = Color3.fromRGB(240,240,245),
+    sub     = Color3.fromRGB(110,110,120),
+    div     = Color3.fromRGB(40,40,48),
+    navhi   = Color3.fromRGB(36,36,44),
+    trkoff  = Color3.fromRGB(55,55,65),
+    srch    = Color3.fromRGB(28,28,34),
+    white   = Color3.fromRGB(255,255,255),
+    black   = Color3.fromRGB(0,0,0),
 }
 
 -- ─── UTILS ───────────────────────────────────────────────────────────────────
@@ -81,7 +82,7 @@ end
 
 -- ─── RAW DRAWING ─────────────────────────────────────────────────────────────
 
-local D = {}  -- drawing object cache
+local D = {}
 
 local function sq(id, x, y, w, h, col, tr)
     if w<=0 or h<=0 then return end
@@ -133,34 +134,27 @@ local function removePfx(p)
     end
 end
 
--- Simple filled rounded rect: one base square + corner masks
--- (corner masks use bg color to "cut" rounded corners)
--- Actually just draw a plain square — rounding is cosmetic only
 local function rect(id, x, y, w, h, col, tr)
     sq(id, x, y, w, h, col, tr)
 end
 
--- Text bounds estimate
 local function tbounds(text, size)
     size = size or UILib._fsize
     return Vector2.new(#tostring(text or '') * size * 0.52, size)
 end
 
--- Mouse position
 local function mouse()
     local p=game:GetService('Players').LocalPlayer
     if p then local m=p:GetMouse(); if m then return Vector2.new(m.X,m.Y) end end
     return Vector2.new(0,0)
 end
 
--- Screen size
 local function screen()
     local c=workspace.CurrentCamera
     if c and c.ViewportSize then return c.ViewportSize end
     return Vector2.new(1920,1080)
 end
 
--- Hit test
 local function hit(x,y,w,h)
     local mp=mouse(); return mp.X>=x and mp.X<=x+w and mp.Y>=y and mp.Y<=y+h
 end
@@ -318,19 +312,15 @@ local function drawColorpicker(held2, click)
     local pX,pY,pW,pH=cx+8,cy+22,cW-16,cH-50
     local hH=12
     local palH=pH-hH-6
-    -- palette base (hue color)
     rect('cp_pal', pX, pY, pW, palH, Color3.fromHSV(cp.h,1,1))
-    -- white overlay fade (horizontal segments)
     for i=1,16 do
         local sx=pX+(i-1)*(pW/16); local sw=pW/16+1
         sq('cp_wh_'..i, sx, pY, sw, palH, Color3.fromRGB(255,255,255), (i-1)/15)
     end
-    -- black overlay fade (vertical segments)
     for i=1,16 do
         local sy=pY+(i-1)*(palH/16); local sh=palH/16+1
         sq('cp_bk_'..i, pX, sy, pW, sh, Color3.fromRGB(0,0,0), 1-(i-1)/15)
     end
-    -- hue bar
     local hY=pY+palH+6
     local hueColors={Color3.fromRGB(255,0,0),Color3.fromRGB(255,255,0),Color3.fromRGB(0,255,0),Color3.fromRGB(0,255,255),Color3.fromRGB(0,0,255),Color3.fromRGB(255,0,255),Color3.fromRGB(255,0,0)}
     for i=1,6 do
@@ -342,16 +332,12 @@ local function drawColorpicker(held2, click)
             sq('cp_h_'..i..'_'..j, pX+(i-1)*segW+(j-1)*(segW/8), hY, segW/8+1, hH, lc)
         end
     end
-    -- cursor
     local dotX=pX+cp.s*pW-4; local dotY=pY+(1-cp.v)*palH-4
     sq('cp_dot', dotX, dotY, 8, 8, UILib.C.white)
-    -- hue cursor
     sq('cp_hdot', pX+cp.h*pW-3, hY, 6, hH, UILib.C.white)
-    -- current color swatch
     local nc=Color3.fromHSV(cp.h,cp.s,cp.v)
     sq('cp_sw', cx+8, cy+cH-14, cW-16, 10, nc)
     if cp.cb then cp.cb(nc) end
-    -- interaction
     local mp=mouse()
     if held2 then
         if hit(pX,pY,pW,palH) then
@@ -370,18 +356,21 @@ end
 -- ─── MAIN STEP ───────────────────────────────────────────────────────────────
 
 function UILib:Step()
+    -- FIX: Guard against C being nil (e.g. if called on a different self reference)
+    if not self.C then
+        self.C = UILib.C
+    end
+    if not self.C then return end  -- still nil, abort safely
+
     local C=self.C
 
-    -- INPUT (all keys read before setrobloxinput)
     pollInput()
     local click=pressed('m1'); local heldM=held('m1'); local rclick=pressed('m2')
 
-    -- menu toggle
     if pressed(self._menu_key) then
         self._menu_open=not self._menu_open
     end
 
-    -- lock roblox input when menu open
     pcall(setrobloxinput, not self._menu_open)
 
     -- NOTIFICATIONS
@@ -402,7 +391,6 @@ function UILib:Step()
         if el>n.time+0.4 then removePfx('n_'..n.id..'_'); table.remove(self._notifs,ni) end
     end
 
-    -- CLOSED: hide menu and return
     if not self._menu_open then
         hidePrefix('m_')
         hidePrefix('nav_')
@@ -410,7 +398,6 @@ function UILib:Step()
         return
     end
 
-    -- DRAG
     if heldM and self._drag then
         local mp=mouse()
         self.x=mp.X-self._drag.X; self.y=mp.Y-self._drag.Y
@@ -420,31 +407,24 @@ function UILib:Step()
 
     local x,y,w,h=self.x,self.y,self.w,self.h
     local sw,pad=self._sw,self._pad
-    local tbH=32  -- title bar height
+    local tbH=32
 
-    -- OUTER BG
     rect('m_bg', x, y, w, h, C.bg)
-
-    -- TITLE BAR
     rect('m_tb', x, y, w, tbH, C.side)
     txt('m_title', x+pad+4, y+8, self.title, C.text, 14)
     local tW=tbounds(self.title,14).X
     txt('m_sub', x+pad+4+tW+6, y+10, self.subtitle, C.sub, 11)
-    -- window dots
     sq('m_dr', x+w-14, y+11, 10, 10, Color3.fromRGB(255,95,86))
     sq('m_dy', x+w-28, y+11, 10, 10, Color3.fromRGB(255,189,46))
     sq('m_dg', x+w-42, y+11, 10, 10, Color3.fromRGB(39,201,63))
-    -- title bar drag
     if click and hit(x,y,w-50,tbH) and not self._drag then
         local mp=mouse(); self._drag=Vector2.new(mp.X-x,mp.Y-y); click=false
     end
 
-    -- SIDEBAR
     local sbX,sbY,sbH=x,y+tbH,h-tbH
     rect('m_sb', sbX, sbY, sw, sbH, C.side)
     ln('m_sdiv', sbX+sw, sbY, sbX+sw, sbY+sbH, C.div)
 
-    -- Search bar
     local srX,srY,srW,srH=sbX+pad,sbY+pad,sw-pad*2,26
     rect('m_sr', srX, srY, srW, srH, C.srch)
     ln('m_sr_t', srX, srY, srX+srW, srY, C.div)
@@ -479,7 +459,6 @@ function UILib:Step()
         end
     end
 
-    -- Nav items
     local navY=srY+srH+6
     for _,tname in ipairs(self._tab_order) do
         local isOpen=self._open_tab==tname
@@ -491,7 +470,6 @@ function UILib:Step()
         else hide('nav_'..tname..'_bar') end
         txt('nav_'..tname..'_t', sbX+pad+10, navY+8, tname, tc, 12)
         if click and hit(sbX+pad,navY,sw-pad*2,28) and not isOpen then
-            -- hide old tab widgets
             local old=self._tree[self._open_tab]
             if old then
                 for _,sn in ipairs(old._sec_order or {}) do
@@ -503,7 +481,6 @@ function UILib:Step()
         navY=navY+28+3
     end
 
-    -- Profile footer
     local pfY=sbY+sbH-38
     ln('m_pfl', sbX+6, pfY, sbX+sw-6, pfY, C.div)
     rect('m_pfbg', sbX, pfY, sw, 38, C.side)
@@ -512,25 +489,20 @@ function UILib:Step()
     txt('m_pfname', sbX+pad+28, pfY+8, self.username or '', C.text, 11)
     txt('m_pfsub', sbX+pad+28, pfY+20, self.usertext or '', C.sub, 10)
 
-    -- CONTENT AREA
     local cX=x+sw+1; local cY=y+tbH; local cW=w-sw-1; local cH=h-tbH
     rect('m_ct', cX, cY, cW, cH, C.content)
-    -- header
     local chH=34
     rect('m_chbg', cX, cY, cW, chH, C.content)
     txt('m_chtxt', cX+pad+4, cY+10, self._open_tab or '', C.text, 14)
     ln('m_chdiv', cX+6, cY+chH, cX+cW-6, cY+chH, C.div)
 
-    -- scroll
     if pressed('up')   then self._scrollT=math.max(0,self._scrollT-35) end
     if pressed('down') then self._scrollT=self._scrollT+35 end
     self._scroll=lerp(self._scroll, self._scrollT, 0.2)
 
-    -- WIDGETS
     local sq2=self._search:lower()
     local tabData=self._open_tab and self._tree[self._open_tab]
 
-    -- hide all inactive tab widgets
     for _,tname in ipairs(self._tab_order) do
         if tname~=self._open_tab then
             local td=self._tree[tname]
@@ -567,23 +539,19 @@ function UILib:Step()
                        or wType=='textbox' and 38
                        or 34
 
-                -- search filter
                 if sq2~='' and not w2.label:lower():find(sq2,1,true) then
                     hidePrefix(wid); wY=wY+iH+4; continue
                 end
 
-                -- clip
                 if wY+iH<=clipTop or wY>=clipBot then
                     hidePrefix(wid); wY=wY+iH+4; continue
                 end
 
-                -- card
                 local isHov=hit(wX,wY,wW,iH)
                 rect(wid..'_bg', wX, wY, wW, iH, isHov and C.cardhov or C.card)
 
                 if wType=='toggle' then
                     local hasCP=w2.cp~=nil; local hasKB=w2.kb~=nil
-                    -- colorpicker swatch
                     if hasCP then
                         local csz=18; local cx2=wX+wW-csz-8; local cy2=wY+(iH-csz)/2
                         sq(wid..'_cp', cx2, cy2, csz, csz, w2.cp.value)
@@ -598,7 +566,6 @@ function UILib:Step()
                             click=false
                         end
                     end
-                    -- toggle pill
                     local tr=hasCP and (wW-56) or (wW-50)
                     local tX=wX+tr; local tY=wY+(iH-18)/2
                     local onC=w2.unsafe and Color3.fromRGB(255,180,0) or C.accent
@@ -708,22 +675,17 @@ function UILib:Step()
             wY=wY+8
         end
 
-        -- clamp scroll
         local maxScroll=math.max(0, wY+math.floor(self._scroll)-(cY+cH)+20)
         self._scrollT=clamp(self._scrollT,0,maxScroll)
     end
 
-    -- Draw popups on top
     click=drawDropdown(click)
     click=drawColorpicker(heldM, click)
 
-    -- Repaint sidebar ON TOP of content (high z isn't available, so redraw last)
     rect('m_sb2', sbX, sbY, sw, sbH, C.side)
     ln('m_sdiv2', sbX+sw, sbY, sbX+sw, sbY+sbH, C.div)
-    -- repaint search
     rect('m_sr2', srX, srY, srW, srH, C.srch)
     txt('m_sr_t3', srX+6, srY+7, srDisp, self._search=='' and C.sub or C.text, 12)
-    -- repaint nav
     local navY2=srY+srH+6
     for _,tname in ipairs(self._tab_order) do
         local isOpen=self._open_tab==tname
@@ -733,17 +695,14 @@ function UILib:Step()
         txt('nav2_'..tname..'_t', sbX+pad+10, navY2+8, tname, isOpen and C.text or C.sub, 12)
         navY2=navY2+28+3
     end
-    -- repaint profile footer
     rect('m_pfbg2', sbX, pfY, sw, 38, C.side)
     sq('m_pfav2', sbX+pad, pfY+7, 24, 24, C.accdim)
     txt('m_pfav_l2', sbX+pad+12, pfY+13, (self.username or 'P'):sub(1,1):upper(), C.accent, 11, true)
     txt('m_pfname2', sbX+pad+28, pfY+8, self.username or '', C.text, 11)
     txt('m_pfsub2', sbX+pad+28, pfY+20, self.usertext or '', C.sub, 10)
-    -- repaint header
     rect('m_chbg2', cX, cY, cW, chH, C.content)
     txt('m_chtxt2', cX+pad+4, cY+10, self._open_tab or '', C.text, 14)
     ln('m_chdiv2', cX+6, cY+chH, cX+cW-6, cY+chH, C.div)
-    -- bottom edge cover
     rect('m_bot', cX, cY+cH-2, cW, 4, C.bg)
 end
 
