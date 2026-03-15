@@ -345,9 +345,9 @@ function UILib:Step()
         local navCol = isOpen and C.navhi or C.side
         draw('nav_'..tname..'_bg','rect',navCol,4,Vector2.new(sbX+pad,navY),Vector2.new(sw-pad*2,28),true)
         -- round nav item corners (mask with sidebar bg)
-        local _nr=4
+        local _nr=6
         for _ni,_nc in ipairs({{sbX+pad,navY},{sbX+pad+sw-pad*2-_nr,navY},{sbX+pad,navY+28-_nr},{sbX+pad+sw-pad*2-_nr,navY+28-_nr}}) do
-            draw('nav_'..tname..'_cr'.._ni,'rect',C.side,5,Vector2.new(_nc[1],_nc[2]),Vector2.new(_nr,_nr),true)
+            draw('nav_'..tname..'_cr'.._ni,'rect',C.side,6,Vector2.new(_nc[1],_nc[2]),Vector2.new(_nr,_nr),true)
         end
         if isOpen then draw('nav_'..tname..'_bar','rect',C.accent,5,Vector2.new(sbX+pad,navY+4),Vector2.new(3,20),true)
         else undraw('nav_'..tname..'_bar') end
@@ -432,9 +432,9 @@ function UILib:Step()
                 local cardCol = isHov and C.cardhov or C.card
                 draw(wid..'_bg','rect',cardCol,10,Vector2.new(wX,wY),Vector2.new(wW,iH),true)
                 -- round card corners (mask with content bg)
-                local _r=4
+                local _r=6
                 for _ci,_cc in ipairs({{wX,wY},{wX+wW-_r,wY},{wX,wY+iH-_r},{wX+wW-_r,wY+iH-_r}}) do
-                    draw(wid..'_bgcr'.._ci,'rect',C.content,11,Vector2.new(_cc[1],_cc[2]),Vector2.new(_r,_r),true)
+                    draw(wid..'_bgcr'.._ci,'rect',C.content,12,Vector2.new(_cc[1],_cc[2]),Vector2.new(_r,_r),true)
                 end
 
                 if wType=='toggle' then
@@ -461,9 +461,9 @@ function UILib:Step()
                     local trkCol = w2.value and onC or C.trkoff
                     draw(wid..'_trk','rect',trkCol,11,Vector2.new(tX,tY2),Vector2.new(34,18),true)
                     -- round toggle track ends
-                    local _tr=5
+                    local _tr=9
                     for _ti,_tc in ipairs({{tX,tY2},{tX+34-_tr,tY2},{tX,tY2+18-_tr},{tX+34-_tr,tY2+18-_tr}}) do
-                        draw(wid..'_trkcr'.._ti,'rect',cardCol,12,Vector2.new(_tc[1],_tc[2]),Vector2.new(_tr,_tr),true)
+                        draw(wid..'_trkcr'.._ti,'rect',cardCol,13,Vector2.new(_tc[1],_tc[2]),Vector2.new(_tr,_tr),true)
                     end
                     draw(wid..'_thm','rect',C.white,12,Vector2.new(w2.value and tX+16 or tX+2,tY2+2),Vector2.new(14,14),true)
                     if clickFrame and inBounds(Vector2.new(tX,tY2),Vector2.new(34,18)) then
@@ -479,6 +479,9 @@ function UILib:Step()
                     draw(wid..'_val','text',C.accent,11,Vector2.new(wX+wW-textW(vt,11)-8,wY+6),vt,false,false,11)
                     local slX=wX+10; local slY2=wY+26; local slW=wW-20
                     draw(wid..'_trk','rect',C.trkoff,11,Vector2.new(slX,slY2),Vector2.new(slW,4),true)
+                    -- round slider track ends
+                    draw(wid..'_trkl','rect',C.content,12,Vector2.new(slX,slY2),Vector2.new(2,4),true)
+                    draw(wid..'_trkr','rect',C.content,12,Vector2.new(slX+slW-2,slY2),Vector2.new(2,4),true)
                     local pct=clamp((w2.value-w2.min)/(w2.max-w2.min),0,1)
                     if pct>0 then draw(wid..'_fill','rect',C.accent,12,Vector2.new(slX,slY2),Vector2.new(math.max(2,slW*pct),4),true) end
                     local thmX=slX+slW*pct-5; local thmY=slY2-3
