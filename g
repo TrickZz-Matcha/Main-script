@@ -324,20 +324,22 @@ function UILib:Step()
     -- BACKGROUND + TITLE
     -- Outer window with rounded corners (6px radius)
     -- Draw cross-pattern: wide center + tall center = rounded silhouette
-    local _wr = 6
-    draw('m_bg',  'rect', C.bg, 1, Vector2.new(x+_wr, y),      Vector2.new(w-_wr*2, h),   true)  -- tall center
-    draw('m_bg2', 'rect', C.bg, 1, Vector2.new(x,      y+_wr), Vector2.new(w,       h-_wr*2), true)  -- wide center
-    -- smooth outer window corners - mask with black (game bg approximation)
-    -- outer window corners: use black to blend with game background
-    maskCorner('m_bgctl', x+_wr,   y+_wr,   _wr, Color3.fromRGB(0,0,0), 2, 'tl')
-    maskCorner('m_bgctr', x+w-_wr, y+_wr,   _wr, Color3.fromRGB(0,0,0), 2, 'tr')
-    maskCorner('m_bgcbl', x+_wr,   y+h-_wr, _wr, Color3.fromRGB(0,0,0), 2, 'bl')
-    maskCorner('m_bgcbr', x+w-_wr, y+h-_wr, _wr, Color3.fromRGB(0,0,0), 2, 'br')
-    draw('m_tb',  'rect', C.side, 2, Vector2.new(x+_wr, y),        Vector2.new(w-_wr*2, tbH), true)
-    draw('m_tb2', 'rect', C.side, 2, Vector2.new(x,     y+_wr),    Vector2.new(w,       tbH-_wr), true)
-    -- title bar top smooth corners
-    maskCorner('m_tbctl', x+_wr,   y+_wr, _wr, C.bg, 4, 'tl')
-    maskCorner('m_tbctr', x+w-_wr, y+_wr, _wr, C.bg, 4, 'tr')
+    local _wr = 10
+    -- outer window body (cross pattern for rounded shape)
+    draw('m_bg',  'rect', C.bg, 1, Vector2.new(x+_wr, y),      Vector2.new(w-_wr*2, h),      true)
+    draw('m_bg2', 'rect', C.bg, 1, Vector2.new(x,     y+_wr),  Vector2.new(w,       h-_wr*2), true)
+    -- smooth outer corners - black matches game bg
+    local _black = Color3.fromRGB(0,0,0)
+    maskCorner('m_bgctl', x+_wr,   y+_wr,   _wr, _black, 2, 'tl')
+    maskCorner('m_bgctr', x+w-_wr, y+_wr,   _wr, _black, 2, 'tr')
+    maskCorner('m_bgcbl', x+_wr,   y+h-_wr, _wr, _black, 2, 'bl')
+    maskCorner('m_bgcbr', x+w-_wr, y+h-_wr, _wr, _black, 2, 'br')
+    -- title bar (also cross pattern)
+    draw('m_tb',  'rect', C.side, 2, Vector2.new(x+_wr, y),       Vector2.new(w-_wr*2, tbH),       true)
+    draw('m_tb2', 'rect', C.side, 2, Vector2.new(x,     y+_wr),   Vector2.new(w,       tbH-_wr),   true)
+    -- title bar top corners: mask with black (game world bg)
+    maskCorner('m_tbctl', x+_wr,   y+_wr, _wr, _black, 4, 'tl')
+    maskCorner('m_tbctr', x+w-_wr, y+_wr, _wr, _black, 4, 'tr')
     draw('m_ttl', 'text', C.text, 3, Vector2.new(x+pad+4,y+8), self.title,         false,false,14)
     local tW=textW(self.title,14)
     draw('m_sub', 'text', C.sub,  3, Vector2.new(x+pad+4+tW+6,y+10), self.subtitle, false,false,11)
@@ -454,7 +456,7 @@ function UILib:Step()
                 if wType=='toggle' then
                     local hasCP=w2.cp~=nil
                     if hasCP then
-                        local csz=18; local cx2=wX+wW-csz-8; local cy2=wY+(iH-csz)/2
+                        local csz=18; local cx2=wX+wW-csz-6; local cy2=wY+(iH-csz)/2
                         draw(wid..'_cp',   'rect',w2.cp.value,12,Vector2.new(cx2,cy2),Vector2.new(csz,csz),true)
                         draw(wid..'_cpbdr','rect',C.div,       13,Vector2.new(cx2,cy2),Vector2.new(csz,csz),false)
                         roundedCorners(wid..'_cp',   cx2, cy2, csz, csz, 4, cardCol, 14)
@@ -471,7 +473,7 @@ function UILib:Step()
                             clickFrame=false
                         end
                     end
-                    local tOff=hasCP and (wW-56) or (wW-50)
+                    local tOff=hasCP and (wW-80) or (wW-50)
                     local tX=wX+tOff; local tY2=wY+(iH-18)/2
                     local onC=w2.unsafe and Color3.fromRGB(255,180,0) or C.accent
                     local trkCol = w2.value and onC or C.trkoff
