@@ -456,12 +456,11 @@ function UILib:Step()
     end
 
     -- ── INPUT ──
-    pcall(setrobloxinput, not self._menu_open)
+    -- Read ALL keys BEFORE setrobloxinput so menu key always works
     for key, data in pairs(self._inputs) do
         local ok2, pressed = pcall(iskeypressed, data.id)
         if not ok2 then pressed = false end
-        local rbxok, rbxActive = pcall(isrbxactive); rbxActive = rbxok and rbxActive
-        if rbxActive and pressed then
+        if pressed then
             self._inputs[key].click = not data.held
             self._inputs[key].held  = true
         else
@@ -470,11 +469,14 @@ function UILib:Step()
         end
     end
 
-    local click     = self:_Pressed('m1')
-    local held      = self:_Held('m1')
-    local rclick    = self:_Pressed('m2')
-    local menuKey   = self:_Pressed(self._menu_key)
+    local click   = self:_Pressed('m1')
+    local held    = self:_Held('m1')
+    local rclick  = self:_Pressed('m2')
+    local menuKey = self:_Pressed(self._menu_key)
     if menuKey then self._menu_open=not self._menu_open; self._menu_toggled_at=os.clock() end
+
+    -- Block roblox input only when menu is open
+    pcall(setrobloxinput, not self._menu_open)
 
     -- ── NOTIFICATIONS ──
     local nOrigin = Vector2.new(self.x+self.w+8, self.y)
@@ -503,10 +505,21 @@ function UILib:Step()
         end
     end
 
-    if not self._menu_open then
-        -- don't hide here - let the fade handler do it smoothly
-        return
+    -- ── MENU FADE (runs regardless of open state) ──
+    local mFade=clamp(1-(self._menu_toggled_at-(os.clock()-0.3))/0.3,0,1)
+    if mFade < 1.05 then
+        local opacity = math.abs((self._menu_open and 0 or 1) - (mFade*mFade*(3-2*mFade)))
+        self:_OpacityPrefix('menu_', opacity)
+        self:_OpacityPrefix('nav_',  opacity)
+        self:_OpacityPrefix('sec_',  opacity)
     end
+    if not self._menu_open and mFade >= 1.05 then
+        self:_HidePrefix('menu_')
+        self:_HidePrefix('nav_')
+        self:_HidePrefix('sec_')
+        return  -- fully closed, nothing to render
+    end
+    if not self._menu_open then return end  -- still fading out, skip render
 
     -- ── DRAG ──
     if held and self._menu_drag then
@@ -999,20 +1012,7 @@ function UILib:Step()
         if click and not self:_InBounds(cpX2,cpY2,cpW,cpH) then self:_KillColorpicker(); click=false end
     end
 
-    -- ── MENU FADE ──
-    local mFade=clamp(1-(self._menu_toggled_at-(os.clock()-0.3))/0.3,0,1)
-    if mFade<1.05 then
-        local opacity=math.abs((self._menu_open and 0 or 1)-(mFade*mFade*(3-2*mFade)))
-        self:_OpacityPrefix('menu_', opacity)
-        self:_OpacityPrefix('nav_',  opacity)
-        self:_OpacityPrefix('sec_',  opacity)
-    end
-    -- when fully closed AND fade settled, hide everything
-    if not self._menu_open and mFade >= 1.05 then
-        self:_HidePrefix('menu_')
-        self:_HidePrefix('nav_')
-        self:_HidePrefix('sec_')
-    end
+    -- (fade handled above early return)
 end
 
 return UILib
