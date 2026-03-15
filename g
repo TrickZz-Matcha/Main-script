@@ -113,42 +113,45 @@ local function setAlpha(id, a)
     local o=D[id]; if o then o.Transparency=a end
 end
 
--- Draw smooth rounded corners by masking with multiple small squares along a circle arc
--- bg = the color BEHIND the rect (used to cut corners)
-local function maskCorner(id, cx, cy, r, bg, zi, quadrant)
-    -- quadrant: 'tl','tr','bl','br'
-    -- draws small squares outside the circle arc to mask the corner
-    local steps = r
-    for i = 0, steps do
-        local angle = (i / steps) * (math.pi / 2)
-        local ax, ay
-        if quadrant == 'tl' then
-            ax = cx - r + math.floor(r * math.sin(angle))
-            ay = cy - r + math.floor(r * math.cos(angle))
-            -- mask the rectangle area outside the arc
-            draw(id..'_'..i, 'rect', bg, zi, Vector2.new(cx-r, ay), Vector2.new(ax-(cx-r)+1, 1), true)
-        elseif quadrant == 'tr' then
-            ax = cx + math.floor(r * math.sin(angle))
-            ay = cy - r + math.floor(r * math.cos(angle))
-            draw(id..'_'..i, 'rect', bg, zi, Vector2.new(ax, ay), Vector2.new((cx+r)-ax+1, 1), true)
-        elseif quadrant == 'bl' then
-            ax = cx - r + math.floor(r * math.sin(angle))
-            ay = cy + math.floor(r * math.cos(angle))
-            draw(id..'_'..i, 'rect', bg, zi, Vector2.new(cx-r, ay), Vector2.new(ax-(cx-r)+1, 1), true)
-        elseif quadrant == 'br' then
-            ax = cx + math.floor(r * math.sin(angle))
-            ay = cy + math.floor(r * math.cos(angle))
-            draw(id..'_'..i, 'rect', bg, zi, Vector2.new(ax, ay), Vector2.new((cx+r)-ax+1, 1), true)
+-- Smooth rounded corners using Bresenham-style circle scanline masking
+-- For each row in the corner, mask the area outside the circle with bg color
+local function roundedCorners(id, x, y, w, h, r, bg, zi)
+    if not r or r <= 0 then return end
+    -- For each row y offset 0..r-1, calculate how many pixels to mask from each corner
+    for dy = 0, r-1 do
+        -- distance from center at this row
+        local dx = math.floor(math.sqrt(math.max(0, r*r - (r-1-dy)*(r-1-dy))))
+        local maskW = r - dx
+        if maskW > 0 then
+            -- top-left corner: mask from left edge
+            draw(id..'_ctl_'..dy,'rect',bg,zi,Vector2.new(x, y+dy),Vector2.new(maskW,1),true)
+            -- top-right corner: mask from right edge
+            draw(id..'_ctr_'..dy,'rect',bg,zi,Vector2.new(x+w-maskW, y+dy),Vector2.new(maskW,1),true)
+            -- bottom-left corner
+            draw(id..'_cbl_'..dy,'rect',bg,zi,Vector2.new(x, y+h-1-dy),Vector2.new(maskW,1),true)
+            -- bottom-right corner
+            draw(id..'_cbr_'..dy,'rect',bg,zi,Vector2.new(x+w-maskW, y+h-1-dy),Vector2.new(maskW,1),true)
         end
     end
 end
 
-local function roundedCorners(id, x, y, w, h, r, bg, zi)
-    if not r or r <= 0 then return end
-    maskCorner(id..'_ctl', x+r,   y+r,   r, bg, zi, 'tl')
-    maskCorner(id..'_ctr', x+w-r, y+r,   r, bg, zi, 'tr')
-    maskCorner(id..'_cbl', x+r,   y+h-r, r, bg, zi, 'bl')
-    maskCorner(id..'_cbr', x+w-r, y+h-r, r, bg, zi, 'br')
+-- Keep maskCorner as alias for outer window corners (single quadrant)
+local function maskCorner(id, cx, cy, r, bg, zi, quadrant)
+    for dy = 0, r-1 do
+        local dx = math.floor(math.sqrt(math.max(0, r*r - (r-1-dy)*(r-1-dy))))
+        local maskW = r - dx
+        if maskW > 0 then
+            if quadrant == 'tl' then
+                draw(id..'_'..dy,'rect',bg,zi,Vector2.new(cx-r, cy-r+dy),Vector2.new(maskW,1),true)
+            elseif quadrant == 'tr' then
+                draw(id..'_'..dy,'rect',bg,zi,Vector2.new(cx+dx, cy-r+dy),Vector2.new(maskW,1),true)
+            elseif quadrant == 'bl' then
+                draw(id..'_'..dy,'rect',bg,zi,Vector2.new(cx-r, cy+dy),Vector2.new(maskW,1),true)
+            elseif quadrant == 'br' then
+                draw(id..'_'..dy,'rect',bg,zi,Vector2.new(cx+dx, cy+dy),Vector2.new(maskW,1),true)
+            end
+        end
+    end
 end
 
 -- ─── HELPERS ─────────────────────────────────────────────────────────────────
