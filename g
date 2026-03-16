@@ -11,7 +11,6 @@ UILib = {
     _menu_open   = true,
     _menu_toggled_at = 0,
     _open_tab    = nil,
-    _tab_change_at = 0,
     _notifications = {},
     _notifications_spawned = 0,
     _inputs      = {['m1']={id=0x01,held=false,click=false},['m2']={id=0x02,held=false,click=false},['f1']={id=0x70,held=false,click=false},['lshift']={id=0xA0,held=false,click=false},['rshift']={id=0xA1,held=false,click=false},['unbound']={id=0x08,held=false,click=false},['enter']={id=0x0D,held=false,click=false},['space']={id=0x20,held=false,click=false},['a']={id=0x41,held=false,click=false},['b']={id=0x42,held=false,click=false},['c']={id=0x43,held=false,click=false},['d']={id=0x44,held=false,click=false},['e']={id=0x45,held=false,click=false},['f']={id=0x46,held=false,click=false},['g']={id=0x47,held=false,click=false},['h']={id=0x48,held=false,click=false},['i']={id=0x49,held=false,click=false},['j']={id=0x4A,held=false,click=false},['k']={id=0x4B,held=false,click=false},['l']={id=0x4C,held=false,click=false},['m']={id=0x4D,held=false,click=false},['n']={id=0x4E,held=false,click=false},['o']={id=0x4F,held=false,click=false},['p']={id=0x50,held=false,click=false},['q']={id=0x51,held=false,click=false},['r']={id=0x52,held=false,click=false},['s']={id=0x53,held=false,click=false},['t']={id=0x54,held=false,click=false},['u']={id=0x55,held=false,click=false},['v']={id=0x56,held=false,click=false},['w']={id=0x57,held=false,click=false},['x']={id=0x58,held=false,click=false},['y']={id=0x59,held=false,click=false},['z']={id=0x5A,held=false,click=false},['0']={id=0x30,held=false,click=false},['1']={id=0x31,held=false,click=false},['2']={id=0x32,held=false,click=false},['3']={id=0x33,held=false,click=false},['4']={id=0x34,held=false,click=false},['5']={id=0x35,held=false,click=false},['6']={id=0x36,held=false,click=false},['7']={id=0x37,held=false,click=false},['8']={id=0x38,held=false,click=false},['9']={id=0x39,held=false,click=false},['minus']={id=0xBD,held=false,click=false},['period']={id=0xBE,held=false,click=false},['comma']={id=0xBC,held=false,click=false}},
@@ -23,8 +22,8 @@ UILib = {
     _active_colorpicker = nil,
     _scroll      = 0,
     _scrollT     = 0,
-    _scroll_delta = 0,   -- set externally by UIS wheel event
-    _scrollbar_drag = nil,  -- NEW: tracks scrollbar thumb drag offset
+    _scroll_delta = 0,
+    _scrollbar_drag = nil,
 
     title    = 'matcha',
     subtitle = 'beta',
@@ -114,35 +113,16 @@ local function setAlpha(id, a)
     local o=D[id]; if o then o.Transparency=a end
 end
 
--- Smooth rounded corners: for each row in corner, mask outside pixels with bg color
--- Uses circle equation: x = sqrt(r^2 - y^2)
 local function roundedCorners(id, x, y, w, h, r, bg, zi)
     if not r or r <= 0 then return end
-    for dy = 0, r-1 do
-        local inner = math.floor(math.sqrt(math.max(0, r*r - (r-dy-1)*(r-dy-1) )))
-        local maskW = r - inner
-        if maskW >= 1 then
-            -- top row dy: mask left and right
-            draw(id..'_tl'..dy,'rect',bg,zi,Vector2.new(x,         y+dy),      Vector2.new(maskW,1),true)
-            draw(id..'_tr'..dy,'rect',bg,zi,Vector2.new(x+w-maskW, y+dy),      Vector2.new(maskW,1),true)
-            -- bottom row dy: mask left and right
-            draw(id..'_bl'..dy,'rect',bg,zi,Vector2.new(x,         y+h-1-dy),  Vector2.new(maskW,1),true)
-            draw(id..'_br'..dy,'rect',bg,zi,Vector2.new(x+w-maskW, y+h-1-dy),  Vector2.new(maskW,1),true)
-        end
-    end
-end
-
-local function maskCorner(id, cx, cy, r, bg, zi, q)
-    -- single quadrant corner mask (for outer window edge)
     for dy = 0, r-1 do
         local inner = math.floor(math.sqrt(math.max(0, r*r - (r-dy-1)*(r-dy-1))))
         local maskW = r - inner
         if maskW >= 1 then
-            if q=='tl' then draw(id..dy,'rect',bg,zi,Vector2.new(cx-r,     cy-r+dy), Vector2.new(maskW,1),true)
-            elseif q=='tr' then draw(id..dy,'rect',bg,zi,Vector2.new(cx+inner, cy-r+dy), Vector2.new(maskW,1),true)
-            elseif q=='bl' then draw(id..dy,'rect',bg,zi,Vector2.new(cx-r,     cy+dy),   Vector2.new(maskW,1),true)
-            elseif q=='br' then draw(id..dy,'rect',bg,zi,Vector2.new(cx+inner, cy+dy),   Vector2.new(maskW,1),true)
-            end
+            draw(id..'_tl'..dy,'rect',bg,zi,Vector2.new(x,         y+dy),     Vector2.new(maskW,1),true)
+            draw(id..'_tr'..dy,'rect',bg,zi,Vector2.new(x+w-maskW, y+dy),     Vector2.new(maskW,1),true)
+            draw(id..'_bl'..dy,'rect',bg,zi,Vector2.new(x,         y+h-1-dy), Vector2.new(maskW,1),true)
+            draw(id..'_br'..dy,'rect',bg,zi,Vector2.new(x+w-maskW, y+h-1-dy), Vector2.new(maskW,1),true)
         end
     end
 end
@@ -239,10 +219,6 @@ function UILib:_Section(tab,sname)
                     sec._widgets[id].cp={label=lbl,value=val2 or Color3.new(1,1,1),ow=ow,cb=cb2}
                     return {Set=function(_,v) sec._widgets[id].cp.value=v; if cb2 then cb2(v) end end}
                 end,
-                AddKeybind=function(_,kval,mode,canChange,kcb)
-                    sec._widgets[id].kb={value=kval,mode=mode or 'Toggle',canChange=canChange~=false,cb=kcb,listening=false,at=0}
-                    return {Set=function(_,v,m) local kb=sec._widgets[id].kb; kb.value=v; kb.mode=m or kb.mode; if kcb then kcb(v,kb.mode) end end}
-                end,
             }
         end,
         Slider=function(_,label,val,step,min,max,suffix,cb)
@@ -321,33 +297,20 @@ function UILib:Step()
     local x,y,w,h=self.x,self.y,self.w,self.h
     local sw,pad=self._sw,self._padding
     local tbH=32
+    local _wr=10
 
-    -- BACKGROUND + TITLE
-    -- Outer window with rounded corners (6px radius)
-    -- Draw cross-pattern: wide center + tall center = rounded silhouette
-    local _wr = 10
-    -- Build rounded window using scanline approach - never draw in corner zones
-    -- For each row, calculate the valid x range and only draw within it
-    -- Top section (title bar): rows y to y+tbH
-    -- Full body: rows y+_wr to y+h-_wr (no rounding needed)
-    -- Bottom corners: rows y+h-_wr to y+h
     for _row = 0, _wr-1 do
         local _inner = math.floor(math.sqrt(math.max(0, _wr*_wr - (_wr-_row-1)*(_wr-_row-1))))
         local _lx = x + _wr - _inner
         local _rw = w - (_wr-_inner)*2
-        -- top rows
-        draw('m_tr'..(_row), 'rect', C.side, 2,
-            Vector2.new(_lx, y+_row), Vector2.new(_rw, 1), true)
-        -- bottom rows
-        draw('m_br'..(_row), 'rect', C.bg, 2,
-            Vector2.new(_lx, y+h-1-_row), Vector2.new(_rw, 1), true)
+        draw('m_tr'..(_row),'rect',C.side,2,Vector2.new(_lx, y+_row),     Vector2.new(_rw,1),true)
+        draw('m_br'..(_row),'rect',C.bg,  2,Vector2.new(_lx, y+h-1-_row), Vector2.new(_rw,1),true)
     end
-    -- Middle section: full width rects from y+_wr to y+h-_wr
-    draw('m_bg', 'rect', C.bg,   1, Vector2.new(x, y+_wr), Vector2.new(w, h-_wr*2),    true)
-    draw('m_tb', 'rect', C.side, 2, Vector2.new(x, y+_wr), Vector2.new(w, tbH-_wr),    true)
-    draw('m_ttl', 'text', C.text, 3, Vector2.new(x+pad+4,y+8), self.title,         false,false,14)
+    draw('m_bg', 'rect',C.bg,  1,Vector2.new(x,y+_wr),Vector2.new(w,h-_wr*2),  true)
+    draw('m_tb', 'rect',C.side,2,Vector2.new(x,y+_wr),Vector2.new(w,tbH-_wr),  true)
+    draw('m_ttl','text',C.text,3,Vector2.new(x+pad+4,y+8),self.title,false,false,14)
     local tW=textW(self.title,14)
-    draw('m_sub', 'text', C.sub,  3, Vector2.new(x+pad+4+tW+6,y+10), self.subtitle, false,false,11)
+    draw('m_sub','text',C.sub, 3,Vector2.new(x+pad+4+tW+6,y+10),self.subtitle,false,false,11)
     draw('m_dr','rect',Color3.fromRGB(255,95,86), 3,Vector2.new(x+w-14,y+11),Vector2.new(10,10),true)
     draw('m_dy','rect',Color3.fromRGB(255,189,46),3,Vector2.new(x+w-28,y+11),Vector2.new(10,10),true)
     draw('m_dg','rect',Color3.fromRGB(39,201,63), 3,Vector2.new(x+w-42,y+11),Vector2.new(10,10),true)
@@ -358,28 +321,26 @@ function UILib:Step()
 
     -- SIDEBAR
     local sbX,sbY,sbH=x,y+tbH,h-tbH
-    draw('m_sb',  'rect',C.side,2,Vector2.new(sbX,sbY),      Vector2.new(sw,sbH),true)
-    draw('m_sdiv','line',C.div, 3,Vector2.new(sbX+sw,sbY),   Vector2.new(sbX+sw,sbY+sbH),1)
+    draw('m_sb',  'rect',C.side,2,Vector2.new(sbX,sbY),    Vector2.new(sw,sbH),true)
+    draw('m_sdiv','line',C.div, 3,Vector2.new(sbX+sw,sbY), Vector2.new(sbX+sw,sbY+sbH),1)
 
     -- NAV
     local navY=sbY+pad
     for _,tname in ipairs(self._tab_order) do
         local isOpen=self._open_tab==tname
-        local navCol = isOpen and C.navhi or C.side
+        local navCol=isOpen and C.navhi or C.side
         draw('nav_'..tname..'_bg','rect',navCol,4,Vector2.new(sbX+pad,navY),Vector2.new(sw-pad*2,28),true)
-        -- subtle border on active nav item
         if isOpen then
             draw('nav_'..tname..'_bdr','rect',C.div,4,Vector2.new(sbX+pad,navY),Vector2.new(sw-pad*2,28),false)
         else
             undraw('nav_'..tname..'_bdr')
         end
-        -- round nav item corners (mask with sidebar bg)
-        roundedCorners('nav_'..tname..'_bg', sbX+pad, navY, sw-pad*2, 28, 8, C.side, 6)
+        roundedCorners('nav_'..tname..'_bg',sbX+pad,navY,sw-pad*2,28,8,C.side,6)
         if isOpen then draw('nav_'..tname..'_bar','rect',C.accent,5,Vector2.new(sbX+pad,navY+4),Vector2.new(3,20),true)
         else undraw('nav_'..tname..'_bar') end
         draw('nav_'..tname..'_t','text',isOpen and C.text or C.sub,5,Vector2.new(sbX+pad+10,navY+8),tname,false,false,12)
         if clickFrame and inBounds(Vector2.new(sbX+pad,navY),Vector2.new(sw-pad*2,28)) and not isOpen then
-            self._open_tab=tname; self._tab_change_at=os.clock()
+            self._open_tab=tname
             self._scroll=0; self._scrollT=0
             clickFrame=false
         end
@@ -388,12 +349,12 @@ function UILib:Step()
 
     -- PROFILE
     local pfY=sbY+sbH-38
-    draw('m_pfbg', 'rect',C.side,  2,Vector2.new(sbX,pfY),      Vector2.new(sw,38),true)
-    draw('m_pfav', 'rect',C.accdim,4,Vector2.new(sbX+pad,pfY+7),Vector2.new(24,24),true)
-    roundedCorners('m_pfav', sbX+pad, pfY+7, 24, 24, 5, C.side, 5)
-    draw('m_pfn',  'text',C.accent,5,Vector2.new(sbX+pad+12,pfY+13),(self.username or 'P'):sub(1,1):upper(),false,true,11)
-    draw('m_pfname','text',C.text, 5,Vector2.new(sbX+pad+28,pfY+8), self.username or '',false,false,11)
-    draw('m_pfsub', 'text',C.sub,  5,Vector2.new(sbX+pad+28,pfY+20),self.usertext or '',false,false,10)
+    draw('m_pfbg',  'rect',C.side,  2,Vector2.new(sbX,pfY),      Vector2.new(sw,38),true)
+    draw('m_pfav',  'rect',C.accdim,4,Vector2.new(sbX+pad,pfY+7),Vector2.new(24,24),true)
+    roundedCorners('m_pfav',sbX+pad,pfY+7,24,24,5,C.side,5)
+    draw('m_pfn',   'text',C.accent,5,Vector2.new(sbX+pad+12,pfY+13),(self.username or 'P'):sub(1,1):upper(),false,true,11)
+    draw('m_pfname','text',C.text,  5,Vector2.new(sbX+pad+28,pfY+8), self.username or '',false,false,11)
+    draw('m_pfsub', 'text',C.sub,   5,Vector2.new(sbX+pad+28,pfY+20),self.usertext or '',false,false,10)
 
     -- CONTENT AREA
     local cX=x+sw+1; local cY=y+tbH; local cW=w-sw-1; local cH=h-tbH
@@ -403,7 +364,7 @@ function UILib:Step()
     draw('m_chtxt','text',C.text,   4,Vector2.new(cX+pad+4,cY+10),self._open_tab or '',false,false,14)
     draw('m_chdiv','line',C.div,    4,Vector2.new(cX+6,cY+chH),Vector2.new(cX+cW-6,cY+chH),1)
 
-    -- SCROLL — consume wheel delta set by UIS in main script
+    -- SCROLL
     if self._scroll_delta ~= 0 then
         self._scrollT = math.max(0, self._scrollT - self._scroll_delta * 40)
         self._scroll_delta = 0
@@ -419,25 +380,24 @@ function UILib:Step()
         end
     end
 
-    -- scrollbar constants
-    local sbBarW  = 4   -- scrollbar track width
-    local sbBarX  = cX + cW - sbBarW - 3  -- 3px from right edge of content
-    local sbBarY  = cY + chH + 4
-    local sbBarH  = cH - chH - 8
-    local _maxScroll = 0  -- will be set after widget pass
+    local sbBarW=4
+    local sbBarX=cX+cW-sbBarW-3
+    local sbBarY=cY+chH+4
+    local sbBarH=cH-chH-8
+    local _maxScroll=0
 
     if tabData then
-        local wY = cY+chH+pad - math.floor(self._scroll)
-        local wX=cX+pad; local wW=cW-pad*2-sbBarW-6  -- shrink widget width to make room for scrollbar
+        local wY=cY+chH+pad - math.floor(self._scroll)
+        local wX=cX+pad; local wW=cW-pad*2-sbBarW-6
         local clipTop=cY+chH+1; local clipBot=cY+cH
-        local totalH=0  -- track total content height for scroll clamping
+        local totalH=0
 
         for _,sname in ipairs(tabData._sec_order or {}) do
             local sec=tabData._items[sname]
             if not sec then continue end
             local slid='s_'..self._open_tab..'_'..sname
 
-            if wY>=clipTop and wY+18<=clipBot then
+            if wY>=clipTop+18 and wY+18<=clipBot then
                 draw(slid..'_hdr','text',C.sub,10,Vector2.new(wX+2,wY+3),sname:upper(),false,false,10)
             else undraw(slid..'_hdr') end
             wY=wY+18; totalH=totalH+18
@@ -459,11 +419,11 @@ function UILib:Step()
                 end
 
                 local isHov=inBounds(Vector2.new(wX,wY),Vector2.new(wW,iH))
-                local cardCol = isHov and C.cardhov or C.card
+                local cardCol=isHov and C.cardhov or C.card
                 draw(wid..'_bg', 'rect',cardCol,10,Vector2.new(wX,wY),Vector2.new(wW,iH),true)
                 draw(wid..'_bdr','rect',C.div,  11,Vector2.new(wX,wY),Vector2.new(wW,iH),false)
-                roundedCorners(wid..'_bg',  wX, wY, wW, iH, 8, C.content, 12)
-                roundedCorners(wid..'_bdr', wX, wY, wW, iH, 8, C.content, 13)
+                roundedCorners(wid..'_bg',  wX,wY,wW,iH,8,C.content,12)
+                roundedCorners(wid..'_bdr', wX,wY,wW,iH,8,C.content,13)
 
                 if wType=='toggle' then
                     local hasCP=w2.cp~=nil
@@ -471,12 +431,11 @@ function UILib:Step()
                         local csz=18; local cx2=wX+wW-csz-6; local cy2=wY+(iH-csz)/2
                         draw(wid..'_cp',   'rect',w2.cp.value,12,Vector2.new(cx2,cy2),Vector2.new(csz,csz),true)
                         draw(wid..'_cpbdr','rect',C.div,       13,Vector2.new(cx2,cy2),Vector2.new(csz,csz),false)
-                        roundedCorners(wid..'_cp',   cx2, cy2, csz, csz, 4, cardCol, 14)
-                        roundedCorners(wid..'_cpbdr',cx2, cy2, csz, csz, 4, cardCol, 15)
+                        roundedCorners(wid..'_cp',   cx2,cy2,csz,csz,4,cardCol,14)
+                        roundedCorners(wid..'_cpbdr',cx2,cy2,csz,csz,4,cardCol,15)
                         if clickFrame and inBounds(Vector2.new(cx2,cy2),Vector2.new(csz,csz)) then
-                            local col = w2.cp.value
+                            local col=w2.cp.value
                             local h2,s2,v2=rgbToHsv(col.R,col.G,col.B)
-                            -- position: try right of menu, fall back to left
                             local ss2=getScreenSize()
                             local ppx=cX+cW+4
                             if ppx+200>ss2.X then ppx=cX-204 end
@@ -488,13 +447,12 @@ function UILib:Step()
                     local tOff=hasCP and (wW-80) or (wW-50)
                     local tX=wX+tOff; local tY2=wY+(iH-18)/2
                     local onC=w2.unsafe and Color3.fromRGB(255,180,0) or C.accent
-                    local trkCol = w2.value and onC or C.trkoff
+                    local trkCol=w2.value and onC or C.trkoff
                     draw(wid..'_trk','rect',trkCol,11,Vector2.new(tX,tY2),Vector2.new(34,18),true)
-                    -- round toggle track ends
-                    roundedCorners(wid..'_trk', tX, tY2, 34, 18, 9, cardCol, 13)
-                    local thmPX = w2.value and tX+16 or tX+2
+                    roundedCorners(wid..'_trk',tX,tY2,34,18,9,cardCol,13)
+                    local thmPX=w2.value and tX+16 or tX+2
                     draw(wid..'_thm','rect',C.white,12,Vector2.new(thmPX,tY2+2),Vector2.new(14,14),true)
-                    roundedCorners(wid..'_thm', thmPX, tY2+2, 14, 14, 7, trkCol, 14)
+                    roundedCorners(wid..'_thm',thmPX,tY2+2,14,14,7,trkCol,14)
                     if clickFrame and inBounds(Vector2.new(tX,tY2),Vector2.new(34,18)) then
                         w2.value=not w2.value; if w2.cb then w2.cb(w2.value) end; clickFrame=false
                     end
@@ -507,15 +465,14 @@ function UILib:Step()
                     local vt=tostring(w2.value)..w2.suffix
                     draw(wid..'_val','text',C.accent,11,Vector2.new(wX+wW-textW(vt,11)-8,wY+6),vt,false,false,11)
                     local slX=wX+10; local slY2=wY+26; local slW=wW-20
-                    draw(wid..'_trk','rect',C.trkoff,11,Vector2.new(slX,slY2),Vector2.new(slW,4),true)
-                    -- round slider track ends
-                    draw(wid..'_trkl','rect',C.content,12,Vector2.new(slX,slY2),Vector2.new(2,4),true)
-                    draw(wid..'_trkr','rect',C.content,12,Vector2.new(slX+slW-2,slY2),Vector2.new(2,4),true)
+                    draw(wid..'_trk', 'rect',C.trkoff, 11,Vector2.new(slX,      slY2),Vector2.new(slW,4),true)
+                    draw(wid..'_trkl','rect',C.content,12,Vector2.new(slX,      slY2),Vector2.new(2,4),  true)
+                    draw(wid..'_trkr','rect',C.content,12,Vector2.new(slX+slW-2,slY2),Vector2.new(2,4),  true)
                     local pct=clamp((w2.value-w2.min)/(w2.max-w2.min),0,1)
                     if pct>0 then draw(wid..'_fill','rect',C.accent,12,Vector2.new(slX,slY2),Vector2.new(math.max(2,slW*pct),4),true) end
                     local thmX=slX+slW*pct-5; local thmY=slY2-3
                     draw(wid..'_thm','rect',C.white,13,Vector2.new(thmX,thmY),Vector2.new(10,10),true)
-                    roundedCorners(wid..'_thm', thmX, thmY, 10, 10, 5, C.content, 14)
+                    roundedCorners(wid..'_thm',thmX,thmY,10,10,5,C.content,14)
                     if mouseHeld then
                         if inBounds(Vector2.new(slX-4,slY2-6),Vector2.new(slW+8,16)) and clickFrame then
                             self._slider_drag=wid; clickFrame=false
@@ -584,8 +541,8 @@ function UILib:Step()
                     local csz=20; local cx2=wX+wW-csz-8; local cy2=wY+7
                     draw(wid..'_sw', 'rect',w2.value,12,Vector2.new(cx2,cy2),Vector2.new(csz,csz),true)
                     draw(wid..'_bdr','rect',C.div,   13,Vector2.new(cx2,cy2),Vector2.new(csz,csz),false)
-                    roundedCorners(wid..'_sw',  cx2, cy2, csz, csz, 4, cardCol, 14)
-                    roundedCorners(wid..'_bdr', cx2, cy2, csz, csz, 4, cardCol, 15)
+                    roundedCorners(wid..'_sw',  cx2,cy2,csz,csz,4,cardCol,14)
+                    roundedCorners(wid..'_bdr', cx2,cy2,csz,csz,4,cardCol,15)
                     if clickFrame and inBounds(Vector2.new(cx2,cy2),Vector2.new(csz,csz)) then
                         local h2,s2,v2=rgbToHsv(w2.value.R,w2.value.G,w2.value.B)
                         self._active_colorpicker={x=cX+cW+4,y=cY,label=w2.label,h=h2,s=s2,v=v2,
@@ -599,58 +556,33 @@ function UILib:Step()
             wY=wY+8; totalH=totalH+8
         end
 
-        -- clamp scroll
         _maxScroll=math.max(0, totalH-(cH-chH-pad*2))
         self._scrollT=clamp(self._scrollT,0,_maxScroll)
     end
 
-    -- ─── SCROLLBAR ───────────────────────────────────────────────────────────
-    -- Only show scrollbar when there is content to scroll
+    -- SCROLLBAR
     if _maxScroll > 0 then
-        -- track (thin background strip)
-        draw('m_sb_track','rect',C.trkoff,20,
-            Vector2.new(sbBarX, sbBarY),
-            Vector2.new(sbBarW, sbBarH), true)
-
-        -- thumb: height proportional to visible/total ratio, clamped to a min of 20px
-        local visibleRatio = clamp((cH-chH-pad*2) / ((cH-chH-pad*2) + _maxScroll), 0, 1)
-        local thumbH       = math.max(20, math.floor(sbBarH * visibleRatio))
-        local thumbTravel  = sbBarH - thumbH
-        local thumbY       = sbBarY + math.floor(thumbTravel * clamp(self._scroll / _maxScroll, 0, 1))
-
-        local isThumbHov = inBounds(Vector2.new(sbBarX-2, thumbY), Vector2.new(sbBarW+4, thumbH))
-        local thumbCol   = (isThumbHov or self._scrollbar_drag ~= nil) and C.accent or C.sub
-
-        draw('m_sb_thumb','rect',thumbCol,21,
-            Vector2.new(sbBarX, thumbY),
-            Vector2.new(sbBarW, thumbH), true)
-
-        -- BEGIN drag on thumb click
-        if clickFrame and isThumbHov and self._scrollbar_drag == nil then
-            local mp = getMouse()
-            self._scrollbar_drag = mp.Y - thumbY  -- offset from top of thumb
-            clickFrame = false
+        draw('m_sb_track','rect',C.trkoff,20,Vector2.new(sbBarX,sbBarY),Vector2.new(sbBarW,sbBarH),true)
+        local visibleRatio=clamp((cH-chH-pad*2)/((cH-chH-pad*2)+_maxScroll),0,1)
+        local thumbH=math.max(20,math.floor(sbBarH*visibleRatio))
+        local thumbTravel=sbBarH-thumbH
+        local thumbY=sbBarY+math.floor(thumbTravel*clamp(self._scroll/_maxScroll,0,1))
+        local isThumbHov=inBounds(Vector2.new(sbBarX-2,thumbY),Vector2.new(sbBarW+4,thumbH))
+        local thumbCol=(isThumbHov or self._scrollbar_drag~=nil) and C.accent or C.sub
+        draw('m_sb_thumb','rect',thumbCol,21,Vector2.new(sbBarX,thumbY),Vector2.new(sbBarW,thumbH),true)
+        if clickFrame and isThumbHov and self._scrollbar_drag==nil then
+            self._scrollbar_drag=getMouse().Y-thumbY; clickFrame=false
         end
-
-        -- DRAG: update scroll from mouse position
-        if mouseHeld and self._scrollbar_drag ~= nil then
-            local mp       = getMouse()
-            local rawThumbY = mp.Y - self._scrollbar_drag
-            local pct       = clamp((rawThumbY - sbBarY) / math.max(1, thumbTravel), 0, 1)
-            self._scrollT   = pct * _maxScroll
-            self._scroll    = self._scrollT  -- snap immediately while dragging for responsiveness
-        else
-            if not mouseHeld then
-                self._scrollbar_drag = nil
-            end
+        if mouseHeld and self._scrollbar_drag~=nil then
+            local pct=clamp((getMouse().Y-self._scrollbar_drag-sbBarY)/math.max(1,thumbTravel),0,1)
+            self._scrollT=pct*_maxScroll; self._scroll=self._scrollT
+        elseif not mouseHeld then
+            self._scrollbar_drag=nil
         end
     else
-        -- no overflow: hide scrollbar
-        undraw('m_sb_track')
-        undraw('m_sb_thumb')
-        self._scrollbar_drag = nil
+        undraw('m_sb_track'); undraw('m_sb_thumb')
+        self._scrollbar_drag=nil
     end
-    -- ─────────────────────────────────────────────────────────────────────────
 
     -- DROPDOWN
     local dd=self._active_dropdown
@@ -688,20 +620,13 @@ function UILib:Step()
         draw('cp_lbl','text',C.text,31,Vector2.new(cpX+8,cpY+6),cp.label,false,false,12)
         local pX=cpX+8; local pY=cpY+22; local pW=cW2-16; local pH=cH2-50
         local hH=12; local palH=pH-hH-6
-        -- Draw palette as a grid of colored cells - direct HSV computation, no transparency tricks
-        -- 12 columns (saturation 0->1) x 8 rows (value 1->0)
-        local cols, rows = 12, 8
-        local cellW = pW / cols
-        local cellH = palH / rows
-        for col = 0, cols-1 do
-            local s = col / (cols-1)
-            for row = 0, rows-1 do
-                local v = 1 - (row / (rows-1))
-                local cellColor = Color3.fromHSV(cp.h, s, v)
-                local cellId = 'cp_cell_' .. col .. '_' .. row
-                draw(cellId, 'rect', cellColor, 31,
-                    Vector2.new(pX + col*cellW, pY + row*cellH),
-                    Vector2.new(cellW+1, cellH+1), true)
+        local cols,rows=12,8
+        local cellW=pW/cols; local cellH=palH/rows
+        for col=0,cols-1 do
+            local s=col/(cols-1)
+            for row=0,rows-1 do
+                draw('cp_cell_'..col..'_'..row,'rect',Color3.fromHSV(cp.h,s,1-(row/(rows-1))),31,
+                    Vector2.new(pX+col*cellW,pY+row*cellH),Vector2.new(cellW+1,cellH+1),true)
             end
         end
         local hY=pY+palH+6
@@ -710,38 +635,31 @@ function UILib:Step()
             local c1,c2=hues[i],hues[i+1]; local sw2=pW/6
             for j=1,4 do
                 local t=(j-1)/3
-                draw('cp_h'..i..'_'..j,'rect',Color3.new(lerp(c1.R,c2.R,t),lerp(c1.G,c2.G,t),lerp(c1.B,c2.B,t)),34,Vector2.new(pX+(i-1)*sw2+(j-1)*(sw2/4),hY),Vector2.new(sw2/4+1,hH),true)
+                draw('cp_h'..i..'_'..j,'rect',Color3.new(lerp(c1.R,c2.R,t),lerp(c1.G,c2.G,t),lerp(c1.B,c2.B,t)),34,
+                    Vector2.new(pX+(i-1)*sw2+(j-1)*(sw2/4),hY),Vector2.new(sw2/4+1,hH),true)
             end
         end
-        -- Dot position matches grid: s goes left(0)->right(1), v goes top(1)->bottom(0)
-        local dotX = pX + cp.s * pW - 5
-        local dotY = pY + (1 - cp.v) * palH - 5
-        draw('cp_dot_bg',  'rect', C.black, 36, Vector2.new(dotX,   dotY),   Vector2.new(10,10), true)
-        draw('cp_dot',     'rect', C.white, 37, Vector2.new(dotX+2, dotY+2), Vector2.new(6,  6), true)
-        draw('cp_hdot','rect', C.white, 36, Vector2.new(pX + cp.h*pW - 3, hY), Vector2.new(6,hH), true)
-        local nc = Color3.fromHSV(cp.h, cp.s, cp.v)
-        draw('cp_sw','rect', nc, 36, Vector2.new(cpX+8, cpY+cH2-14), Vector2.new(cW2-16, 10), true)
-        local mp = getMouse()
+        local dotX=pX+cp.s*pW-5; local dotY=pY+(1-cp.v)*palH-5
+        draw('cp_dot_bg','rect',C.black,36,Vector2.new(dotX,   dotY),   Vector2.new(10,10),true)
+        draw('cp_dot',   'rect',C.white,37,Vector2.new(dotX+2, dotY+2), Vector2.new(6,  6), true)
+        draw('cp_hdot',  'rect',C.white,36,Vector2.new(pX+cp.h*pW-3,hY),Vector2.new(6,hH), true)
+        draw('cp_sw',    'rect',Color3.fromHSV(cp.h,cp.s,cp.v),36,Vector2.new(cpX+8,cpY+cH2-14),Vector2.new(cW2-16,10),true)
+        local mp=getMouse()
         if mouseHeld then
-            local changed = false
-            if inBounds(Vector2.new(pX,pY), Vector2.new(pW,palH)) then
-                cp.s = clamp((mp.X - pX) / pW, 0, 1)
-                cp.v = 1 - clamp((mp.Y - pY) / palH, 0, 1)
-                changed = true
-            elseif inBounds(Vector2.new(pX,hY), Vector2.new(pW,hH)) then
-                cp.h = clamp((mp.X - pX) / pW, 0, 1)
-                changed = true
+            local changed=false
+            if inBounds(Vector2.new(pX,pY),Vector2.new(pW,palH)) then
+                cp.s=clamp((mp.X-pX)/pW,0,1); cp.v=1-clamp((mp.Y-pY)/palH,0,1); changed=true
+            elseif inBounds(Vector2.new(pX,hY),Vector2.new(pW,hH)) then
+                cp.h=clamp((mp.X-pX)/pW,0,1); changed=true
             end
-            if changed and cp.cb then
-                cp.cb(Color3.fromHSV(cp.h, cp.s, cp.v))
-            end
+            if changed and cp.cb then cp.cb(Color3.fromHSV(cp.h,cp.s,cp.v)) end
         end
         if clickFrame and not inBounds(Vector2.new(cpX,cpY),Vector2.new(cW2,cH2)) then
             self._active_colorpicker=nil; undrawPrefix('cp_'); clickFrame=false
         end
     else undrawPrefix('cp_') end
 
-    -- menu fade
+    -- MENU FADE
     local menuFade=1-(self._menu_toggled_at-(os.clock()-0.25))/0.25
     if menuFade<1.1 then
         local a=math.abs((self._menu_open and 0 or 1)-clamp(menuFade,0,1))
