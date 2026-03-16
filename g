@@ -273,7 +273,10 @@ function UILib:Step()
 
     -- clear menu key click on first frame to prevent startup toggle
     if not self._menu_key_ready then
-        if UILib._inputs[self._menu_key] then UILib._inputs[self._menu_key].click = false end
+        if UILib._inputs[self._menu_key] then
+            UILib._inputs[self._menu_key].click = false
+            UILib._inputs[self._menu_key].held  = false
+        end
         self._menu_key_ready = true
     end
 
@@ -396,6 +399,7 @@ function UILib:Step()
         self._scroll_delta = 0
     end
     self._scroll = lerp(self._scroll, self._scrollT, 0.25)
+    if math.abs(self._scroll - self._scrollT) < 0.5 then self._scroll = self._scrollT end
 
     -- scrollbar constants
     local sbW2=8; local sbX2=cX+cW-sbW2-4; local sbY2=cY+chH+6; local sbH2=cH-chH-14
@@ -413,7 +417,7 @@ function UILib:Step()
 
     if tabData then
         local wY = cY+chH+pad - math.floor(self._scroll)
-        local wX=cX+pad; local wW=cW-pad*2-sbW2-12
+        local wX=cX+pad; local wW=math.max(1, cW-pad*2-sbW2-12)
         local clipTop=cY+chH; local clipBot=cY+cH
         local totalH=0
 
@@ -483,13 +487,13 @@ function UILib:Step()
 
                 elseif wType=='slider' then
                     draw(wid..'_lbl','text',C.text,11,Vector2.new(wX+10,wY+6),w2.label,false,false,12)
-                    local vt=tostring(w2.value)..w2.suffix
+                    local vt=tostring(w2.value or w2.min or 0)..( w2.suffix or '')
                     draw(wid..'_val','text',C.accent,11,Vector2.new(wX+wW-textW(vt,11)-8,wY+6),vt,false,false,11)
                     local slX=wX+10; local slY2=wY+26; local slW=wW-20
                     draw(wid..'_trk','rect',C.trkoff,11,Vector2.new(slX,slY2),Vector2.new(slW,4),true)
                     draw(wid..'_trkl','rect',C.content,12,Vector2.new(slX,slY2),Vector2.new(2,4),true)
                     draw(wid..'_trkr','rect',C.content,12,Vector2.new(slX+slW-2,slY2),Vector2.new(2,4),true)
-                    local pct=w2.max~=w2.min and clamp((w2.value-w2.min)/(w2.max-w2.min),0,1) or 0
+                    local pct=w2.max~=w2.min and clamp(((w2.value or w2.min or 0)-w2.min)/(w2.max-w2.min),0,1) or 0
                     if pct>0 then draw(wid..'_fill','rect',C.accent,12,Vector2.new(slX,slY2),Vector2.new(math.max(2,slW*pct),4),true) end
                     local thmX=slX+slW*pct-5; local thmY=slY2-3
                     draw(wid..'_thm','rect',C.white,13,Vector2.new(thmX,thmY),Vector2.new(10,10),true)
@@ -613,13 +617,13 @@ function UILib:Step()
     -- DROPDOWN
     local dd=self._active_dropdown
     if dd then
-        local iH=20; local total=#dd.choices*iH+8
+        local iH=20; local total=#(dd.choices or {})*iH+8
         draw('dd_bg', 'rect',C.card,30,Vector2.new(dd.x,dd.y),Vector2.new(dd.w,total),true)
         draw('dd_bdr','rect',C.div, 31,Vector2.new(dd.x,dd.y),Vector2.new(dd.w,total),false)
         local cancel=true
         for i,ch in ipairs(dd.choices) do
             local cy=dd.y+4+(i-1)*iH
-            local found=table.find(dd.value,ch)
+            local found=dd.value and table.find(dd.value,ch) or false
             if inBounds(Vector2.new(dd.x+2,cy),Vector2.new(dd.w-4,iH)) then
                 draw('dd_hov','rect',C.navhi,31,Vector2.new(dd.x+2,cy),Vector2.new(dd.w-4,iH),true)
                 if clickFrame then
@@ -643,7 +647,7 @@ function UILib:Step()
         local ss=getScreenSize(); if cpX+cW2>ss.X then cpX=ss.X-cW2-4 end
         draw('cp_bg', 'rect',C.card,30,Vector2.new(cpX,cpY),Vector2.new(cW2,cH2),true)
         draw('cp_bdr','rect',C.div, 31,Vector2.new(cpX,cpY),Vector2.new(cW2,cH2),false)
-        draw('cp_lbl','text',C.text,31,Vector2.new(cpX+8,cpY+6),cp.label,false,false,12)
+        draw('cp_lbl','text',C.text,31,Vector2.new(cpX+8,cpY+6),cp.label or '',false,false,12)
         local pX=cpX+8; local pY=cpY+22; local pW=cW2-16; local pH=cH2-50
         local hH=12; local palH=pH-hH-6
         local cols,rows=12,8
