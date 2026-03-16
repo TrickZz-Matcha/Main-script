@@ -133,6 +133,9 @@ local function removePfx(p)
     end
 end
 
+-- Simple filled rounded rect: one base square + corner masks
+-- (corner masks use bg color to "cut" rounded corners)
+-- Actually just draw a plain square — rounding is cosmetic only
 local function rect(id, x, y, w, h, col, tr)
     sq(id, x, y, w, h, col, tr)
 end
@@ -521,34 +524,6 @@ function UILib:Step()
     -- scroll
     if pressed('up')   then self._scrollT=math.max(0,self._scrollT-35) end
     if pressed('down') then self._scrollT=self._scrollT+35 end
-    -- mouse wheel via Mouse.WheelForward / WheelBackward (works even with setrobloxinput blocked)
-    if not self._wheelConn then
-        self._wheelDelta=0
-        local m=game:GetService('Players').LocalPlayer:GetMouse()
-        self._wheelConn=true
-        m.WheelForward:Connect(function()
-            if not UILib._menu_open then return end
-            local cXs=UILib.x+UILib._sw+1; local cYs=UILib.y+32+34
-            local cWs=UILib.w-UILib._sw-1; local cHs=UILib.h-32-34
-            local mp2=game:GetService('Players').LocalPlayer:GetMouse()
-            if mp2.X>=cXs and mp2.X<=cXs+cWs and mp2.Y>=cYs and mp2.Y<=cYs+cHs then
-                UILib._wheelDelta=UILib._wheelDelta-1
-            end
-        end)
-        m.WheelBackward:Connect(function()
-            if not UILib._menu_open then return end
-            local cXs=UILib.x+UILib._sw+1; local cYs=UILib.y+32+34
-            local cWs=UILib.w-UILib._sw-1; local cHs=UILib.h-32-34
-            local mp2=game:GetService('Players').LocalPlayer:GetMouse()
-            if mp2.X>=cXs and mp2.X<=cXs+cWs and mp2.Y>=cYs and mp2.Y<=cYs+cHs then
-                UILib._wheelDelta=UILib._wheelDelta+1
-            end
-        end)
-    end
-    if (self._wheelDelta or 0)~=0 then
-        self._scrollT=math.max(0, self._scrollT+self._wheelDelta*40)
-        self._wheelDelta=0
-    end
     self._scroll=lerp(self._scroll, self._scrollT, 0.2)
 
     -- WIDGETS
