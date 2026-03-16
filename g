@@ -201,8 +201,9 @@ function UILib:Notification(text,time)
 end
 
 function UILib:Unload()
-    for k,o in pairs(D) do pcall(function() o:Remove() end) end
-    for k in pairs(D) do D[k]=nil end
+    local toRemove={}
+    for k,o in pairs(D) do toRemove[k]=o end
+    for k,o in pairs(toRemove) do pcall(function() o:Remove() end); D[k]=nil end
     pcall(setrobloxinput,true)
 end
 
@@ -291,13 +292,15 @@ function UILib:Step()
     end
 
     -- NOTIFICATIONS
+    local _nslot=0
     for ni=#self._notifications,1,-1 do
         local n=self._notifications[ni]
         local el=os.clock()-n._spawned_at
         local fade=clamp(el<0.3 and el/0.3 or (el>n.time and 1-(el-n.time)/0.4 or 1),0,1)
         if fade>0.01 then
+            _nslot=_nslot+1
             local nW=math.max(textW(n.text,12)+20,160); local nH=26
-            local nx=20; local ny=20+(ni-1)*(nH+4)
+            local nx=20; local ny=20+(_nslot-1)*(nH+4)
             draw('notif_'..n._id..'_bg','rect',C.card,50,Vector2.new(nx,ny),Vector2.new(nW,nH),true)
             draw('notif_'..n._id..'_t', 'text',C.text,51,Vector2.new(nx+8,ny+6),n.text,false,false,12)
             draw('notif_'..n._id..'_p', 'rect',C.accent,52,Vector2.new(nx+2,ny+nH-3),Vector2.new((nW-4)*clamp(el/n.time,0,1),2),true)
@@ -336,8 +339,8 @@ function UILib:Step()
         draw('m_br'..(_row), 'rect', C.bg,   2, Vector2.new(_lx, y+h-1-_row), Vector2.new(_rw, 1), true)
         end
     end
-    draw('m_bg',  'rect', C.bg,   1, Vector2.new(x, y+_wr),  Vector2.new(w, h-_wr*2), true)
-    draw('m_tb',  'rect', C.side, 2, Vector2.new(x, y+_wr),  Vector2.new(w, tbH-_wr), true)
+    draw('m_bg',  'rect', C.bg,   1, Vector2.new(x, y+_wr),  Vector2.new(w, math.max(1,h-_wr*2)), true)
+    draw('m_tb',  'rect', C.side, 2, Vector2.new(x, y+_wr),  Vector2.new(w, math.max(1,tbH-_wr)), true)
     draw('m_ttl', 'text', C.text, 3, Vector2.new(x+pad+4,y+8), self.title, false,false,14)
     local tW=textW(self.title,14)
     draw('m_sub', 'text', C.sub,  3, Vector2.new(x+pad+4+tW+6,y+10), self.subtitle, false,false,11)
@@ -370,6 +373,7 @@ function UILib:Step()
         if clickFrame and inBounds(Vector2.new(sbX+pad,navY),Vector2.new(sw-pad*2,28)) and not isOpen then
             self._open_tab=tname; self._tab_change_at=os.clock()
             self._scroll=0; self._scrollT=0
+            self._input_ctx=nil
             clickFrame=false
         end
         navY=navY+28+3
@@ -444,6 +448,7 @@ function UILib:Step()
 
                 if wY+iH<=clipTop or wY>=clipBot then
                     undrawPrefix(wid); wY=wY+iH+4
+                    if self._slider_drag==wid then self._slider_drag=nil end
                 else
                 local isHov=inBounds(Vector2.new(wX,wY),Vector2.new(wW,iH))
                 local cardCol = isHov and C.cardhov or C.card
@@ -621,7 +626,7 @@ function UILib:Step()
         draw('dd_bg', 'rect',C.card,30,Vector2.new(dd.x,dd.y),Vector2.new(dd.w,total),true)
         draw('dd_bdr','rect',C.div, 31,Vector2.new(dd.x,dd.y),Vector2.new(dd.w,total),false)
         local cancel=true
-        for i,ch in ipairs(dd.choices) do
+        for i,ch in ipairs(dd.choices or {}) do
             local cy=dd.y+4+(i-1)*iH
             local found=dd.value and table.find(dd.value,ch) or false
             if inBounds(Vector2.new(dd.x+2,cy),Vector2.new(dd.w-4,iH)) then
@@ -644,7 +649,7 @@ function UILib:Step()
     if cp then
         local cW2,cH2=200,195
         local cpX,cpY=cp.x,cp.y
-        local ss=getScreenSize(); if cpX+cW2>ss.X then cpX=ss.X-cW2-4 end
+        local ss=getScreenSize(); if cpX+cW2>ss.X then cpX=ss.X-cW2-4 end; if cpX<0 then cpX=4 end; if cpY+cH2>ss.Y then cpY=ss.Y-cH2-4 end; if cpY<0 then cpY=4 end
         draw('cp_bg', 'rect',C.card,30,Vector2.new(cpX,cpY),Vector2.new(cW2,cH2),true)
         draw('cp_bdr','rect',C.div, 31,Vector2.new(cpX,cpY),Vector2.new(cW2,cH2),false)
         draw('cp_lbl','text',C.text,31,Vector2.new(cpX+8,cpY+6),cp.label or '',false,false,12)
