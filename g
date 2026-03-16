@@ -382,7 +382,7 @@ function UILib:Step()
     self._scroll = lerp(self._scroll, self._scrollT, 0.25)
 
     -- SCROLLBAR
-    local sbW2=6; local sbX2=cX+cW-sbW2-3; local sbY2=cY+chH+4; local sbH2=cH-chH-8
+    local sbW2=5; local sbX2=cX+cW-sbW2-4; local sbY2=cY+chH+6; local sbH2=cH-chH-12
 
     -- WIDGETS
     local tabData=self._open_tab and self._tree[self._open_tab]
@@ -397,7 +397,7 @@ function UILib:Step()
 
     if tabData then
         local wY = cY+chH+pad - math.floor(self._scroll)
-        local wX=cX+pad; local wW=cW-pad*2-sbW2-6  -- leave room for scrollbar
+        local wX=cX+pad; local wW=cW-pad*2-sbW2-8  -- leave room for scrollbar
         local clipTop=cY+chH; local clipBot=cY+cH
         local totalH=0
 
@@ -570,7 +570,8 @@ function UILib:Step()
     -- SCROLLBAR
     if maxScroll > 0 then
         -- track
-        draw('m_sbt','rect',C.div,20,Vector2.new(sbX2,sbY2),Vector2.new(sbW2,sbH2),true)
+        draw('m_sbt','rect',C.trkoff,20,Vector2.new(sbX2,sbY2),Vector2.new(sbW2,sbH2),true)
+        roundedCorners('m_sbt', sbX2, sbY2, sbW2, sbH2, 2, C.content, 21)
         -- thumb: height proportional to how much content is visible
         local visRatio = (cH-chH-pad*2) / ((cH-chH-pad*2) + maxScroll)
         local thumbH = math.max(20, math.floor(sbH2 * visRatio))
