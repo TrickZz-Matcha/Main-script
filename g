@@ -24,6 +24,7 @@ UILib = {
     _scroll      = 0,
     _scrollT     = 0,
     _scroll_delta = 0,   -- set externally by UIS wheel event
+    _scrollbar_drag = nil,  -- NEW: tracks scrollbar thumb drag offset
 
     title    = 'matcha',
     subtitle = 'beta',
@@ -418,9 +419,16 @@ function UILib:Step()
         end
     end
 
+    -- scrollbar constants
+    local sbBarW  = 4   -- scrollbar track width
+    local sbBarX  = cX + cW - sbBarW - 3  -- 3px from right edge of content
+    local sbBarY  = cY + chH + 4
+    local sbBarH  = cH - chH - 8
+    local _maxScroll = 0  -- will be set after widget pass
+
     if tabData then
         local wY = cY+chH+pad - math.floor(self._scroll)
-        local wX=cX+pad; local wW=cW-pad*2
+        local wX=cX+pad; local wW=cW-pad*2-sbBarW-6  -- shrink widget width to make room for scrollbar
         local clipTop=cY+chH; local clipBot=cY+cH
         local totalH=0  -- track total content height for scroll clamping
 
@@ -592,8 +600,57 @@ function UILib:Step()
         end
 
         -- clamp scroll
-        local maxScroll=math.max(0, totalH-(cH-chH-pad*2))
+        _maxScroll=math.max(0, totalH-(cH-chH-pad*2))
+        self._scrollT=clamp(self._scrollT,0,_maxScroll)
     end
+
+    -- ─── SCROLLBAR ───────────────────────────────────────────────────────────
+    -- Only show scrollbar when there is content to scroll
+    if _maxScroll > 0 then
+        -- track (thin background strip)
+        draw('m_sb_track','rect',C.trkoff,20,
+            Vector2.new(sbBarX, sbBarY),
+            Vector2.new(sbBarW, sbBarH), true)
+
+        -- thumb: height proportional to visible/total ratio, clamped to a min of 20px
+        local visibleRatio = clamp((cH-chH-pad*2) / ((cH-chH-pad*2) + _maxScroll), 0, 1)
+        local thumbH       = math.max(20, math.floor(sbBarH * visibleRatio))
+        local thumbTravel  = sbBarH - thumbH
+        local thumbY       = sbBarY + math.floor(thumbTravel * clamp(self._scroll / _maxScroll, 0, 1))
+
+        local isThumbHov = inBounds(Vector2.new(sbBarX-2, thumbY), Vector2.new(sbBarW+4, thumbH))
+        local thumbCol   = (isThumbHov or self._scrollbar_drag ~= nil) and C.accent or C.sub
+
+        draw('m_sb_thumb','rect',thumbCol,21,
+            Vector2.new(sbBarX, thumbY),
+            Vector2.new(sbBarW, thumbH), true)
+
+        -- BEGIN drag on thumb click
+        if clickFrame and isThumbHov and self._scrollbar_drag == nil then
+            local mp = getMouse()
+            self._scrollbar_drag = mp.Y - thumbY  -- offset from top of thumb
+            clickFrame = false
+        end
+
+        -- DRAG: update scroll from mouse position
+        if mouseHeld and self._scrollbar_drag ~= nil then
+            local mp       = getMouse()
+            local rawThumbY = mp.Y - self._scrollbar_drag
+            local pct       = clamp((rawThumbY - sbBarY) / math.max(1, thumbTravel), 0, 1)
+            self._scrollT   = pct * _maxScroll
+            self._scroll    = self._scrollT  -- snap immediately while dragging for responsiveness
+        else
+            if not mouseHeld then
+                self._scrollbar_drag = nil
+            end
+        end
+    else
+        -- no overflow: hide scrollbar
+        undraw('m_sb_track')
+        undraw('m_sb_thumb')
+        self._scrollbar_drag = nil
+    end
+    -- ─────────────────────────────────────────────────────────────────────────
 
     -- DROPDOWN
     local dd=self._active_dropdown
