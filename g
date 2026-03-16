@@ -1,27 +1,17 @@
 --[[
-    library.lua — matcha edition (rewritten/fixed)
-
-    FIXES:
-    1. hidePrefix('nav2_') added to closed-menu block so repaint layer hides correctly
-    2. Step() now tracks a _initialized flag so first open always renders cleanly
-    3. _menu_open toggle guard: can't re-toggle within same frame
-    4. drawColorpicker correctly returns both click & held state
-    5. Dropdown hit-test fixed (cancel logic inverted in original)
-    6. Slider drag correctly resets on mouse release
-    7. Scroll clamping fixed (was using stale wY)
-    8. All hidePrefix calls consolidated and correct
-    9. setrobloxinput pcall guard hardened
-    10. tbounds uses a Text drawing for accurate measurement
+    library.lua — matcha edition (executor-safe)
+    Replaced all `continue` with goto/label pairs for broad executor compatibility.
+    UILib is set as a global AND returned.
 ]]
 
 UILib = {
-    _drawings  = {},
-    _tree      = {},
-    _tab_order = {},
-    _open_tab  = nil,
-    _menu_open = false,
-    _menu_key  = 'f1',
-    _inputs    = {
+    _drawings    = {},
+    _tree        = {},
+    _tab_order   = {},
+    _open_tab    = nil,
+    _menu_open   = false,
+    _menu_key    = 'f1',
+    _inputs      = {
         ['m1']={id=0x01,h=false,c=false},['m2']={id=0x02,h=false,c=false},
         ['f1']={id=0x70,h=false,c=false},['f2']={id=0x71,h=false,c=false},
         ['f3']={id=0x72,h=false,c=false},['f4']={id=0x73,h=false,c=false},
@@ -65,19 +55,15 @@ UILib = {
     _cp          = nil,
     _notifs      = {},
     _notif_id    = 0,
-    _toggle_guard= false, -- FIX: prevent same-frame double-toggle
-    -- layout
     title    = 'matcha',
     subtitle = '',
     username = 'Player',
     usertext = '',
     x = 100, y = 80, w = 580, h = 420,
-    _sw     = 145,
-    _pad    = 10,
-    _corner = 6,
-    _font   = Drawing.Fonts.System,
-    _fsize  = 13,
-    -- theme
+    _sw    = 145,
+    _pad   = 10,
+    _font  = Drawing.Fonts.System,
+    _fsize = 13,
     C = {
         bg      = Color3.fromRGB(18,18,20),
         side    = Color3.fromRGB(22,22,25),
@@ -97,162 +83,126 @@ UILib = {
     },
 }
 
+-- expose globally so the main script can always find it
+_G.UILib = UILib
+
 -- ─── UTILS ───────────────────────────────────────────────────────────────────
 
-local function clamp(v, a, b) return v < a and a or v > b and b or v end
-local function lerp(a, b, t)  return a + (b - a) * t end
+local function clamp(v,a,b) return v<a and a or v>b and b or v end
+local function lerp(a,b,t)  return a+(b-a)*t end
 
-local function hsvToRgb(h, s, v)
-    local r, g, b
-    local i = math.floor(h * 6)
-    local f = h * 6 - i
-    local p = v * (1 - s)
-    local q = v * (1 - f * s)
-    local t2 = v * (1 - (1 - f) * s)
-    i = i % 6
-    if     i == 0 then r, g, b = v, t2, p
-    elseif i == 1 then r, g, b = q, v, p
-    elseif i == 2 then r, g, b = p, v, t2
-    elseif i == 3 then r, g, b = p, q, v
-    elseif i == 4 then r, g, b = t2, p, v
-    else               r, g, b = v, p, q end
-    return Color3.new(r, g, b)
+local function hsvToRgb(h,s,v)
+    local i=math.floor(h*6); local f=h*6-i
+    local p=v*(1-s); local q=v*(1-f*s); local t2=v*(1-(1-f)*s)
+    i=i%6
+    local r,g,b
+    if     i==0 then r,g,b=v,t2,p
+    elseif i==1 then r,g,b=q,v,p
+    elseif i==2 then r,g,b=p,v,t2
+    elseif i==3 then r,g,b=p,q,v
+    elseif i==4 then r,g,b=t2,p,v
+    else              r,g,b=v,p,q end
+    return Color3.new(r,g,b)
 end
 
-local function rgbToHsv(r, g, b)
-    local max = math.max(r, g, b)
-    local min = math.min(r, g, b)
-    local d   = max - min
-    local h, s, v = 0, max > 0 and d / max or 0, max
-    if d ~= 0 then
-        if     max == r then h = (g - b) / d + (g < b and 6 or 0)
-        elseif max == g then h = (b - r) / d + 2
-        else                 h = (r - g) / d + 4 end
-        h = h / 6
+local function rgbToHsv(r,g,b)
+    local max=math.max(r,g,b); local min=math.min(r,g,b); local d=max-min
+    local h,s,v=0, max>0 and d/max or 0, max
+    if d~=0 then
+        if     max==r then h=(g-b)/d+(g<b and 6 or 0)
+        elseif max==g then h=(b-r)/d+2
+        else               h=(r-g)/d+4 end
+        h=h/6
     end
-    return h, s, v
+    return h,s,v
 end
 
 -- ─── RAW DRAWING ─────────────────────────────────────────────────────────────
 
 local D = {}
 
-local function sq(id, x, y, w, h, col, tr)
-    if w <= 0 or h <= 0 then return end
-    if not D[id] then D[id] = Drawing.new('Square') end
-    local o = D[id]
-    o.Position     = Vector2.new(x, y)
-    o.Size         = Vector2.new(w, h)
-    o.Color        = col
-    o.Filled       = true
-    o.Transparency = tr or 0
-    o.Visible      = true
+local function sq(id,x,y,w,h,col,tr)
+    if w<=0 or h<=0 then return end
+    if not D[id] then D[id]=Drawing.new('Square') end
+    local o=D[id]
+    o.Position=Vector2.new(x,y); o.Size=Vector2.new(w,h)
+    o.Color=col; o.Filled=true; o.Transparency=tr or 0; o.Visible=true
 end
 
-local function txt(id, x, y, text, col, size, center, outline, tr)
-    if not D[id] then D[id] = Drawing.new('Text') end
-    local o = D[id]
-    o.Position     = Vector2.new(x, y)
-    o.Text         = tostring(text or '')
-    o.Color        = col
-    o.Size         = size or UILib._fsize
-    o.Font         = UILib._font
-    o.Center       = center or false
-    o.Outline      = outline or false
-    o.Transparency = tr or 0
-    o.Visible      = true
+local function txt(id,x,y,text,col,size,center,outline,tr)
+    if not D[id] then D[id]=Drawing.new('Text') end
+    local o=D[id]
+    o.Position=Vector2.new(x,y); o.Text=tostring(text or '')
+    o.Color=col; o.Size=size or UILib._fsize; o.Font=UILib._font
+    o.Center=center or false; o.Outline=outline or false
+    o.Transparency=tr or 0; o.Visible=true
 end
 
-local function ln(id, x1, y1, x2, y2, col, tr)
-    if not D[id] then D[id] = Drawing.new('Line') end
-    local o = D[id]
-    o.From         = Vector2.new(x1, y1)
-    o.To           = Vector2.new(x2, y2)
-    o.Color        = col
-    o.Thickness    = 1
-    o.Transparency = tr or 0
-    o.Visible      = true
+local function ln(id,x1,y1,x2,y2,col,tr)
+    if not D[id] then D[id]=Drawing.new('Line') end
+    local o=D[id]
+    o.From=Vector2.new(x1,y1); o.To=Vector2.new(x2,y2)
+    o.Color=col; o.Thickness=1; o.Transparency=tr or 0; o.Visible=true
 end
 
 local function hide(id)
-    if D[id] then D[id].Visible = false end
+    if D[id] then D[id].Visible=false end
 end
 
 local function hidePrefix(p)
-    for k, o in pairs(D) do
-        if type(k) == 'string' and k:sub(1, #p) == p then
-            o.Visible = false
-        end
+    for k,o in pairs(D) do
+        if type(k)=='string' and k:sub(1,#p)==p then o.Visible=false end
     end
 end
 
 local function removePfx(p)
-    for k, o in pairs(D) do
-        if type(k) == 'string' and k:sub(1, #p) == p then
-            o:Remove()
-            D[k] = nil
-        end
+    for k,o in pairs(D) do
+        if type(k)=='string' and k:sub(1,#p)==p then o:Remove(); D[k]=nil end
     end
 end
 
--- Alias
 local rect = sq
 
--- Text width estimate (character-width approximation)
-local function tbounds(text, size)
-    size = size or UILib._fsize
-    return Vector2.new(#tostring(text or '') * size * 0.52, size)
+local function tbounds(text,size)
+    size=size or UILib._fsize
+    return Vector2.new(#tostring(text or '')*size*0.52, size)
 end
 
--- Mouse position
 local function mouse()
-    local p = game:GetService('Players').LocalPlayer
-    if p then
-        local m = p:GetMouse()
-        if m then return Vector2.new(m.X, m.Y) end
-    end
-    return Vector2.new(0, 0)
+    local p=game:GetService('Players').LocalPlayer
+    if p then local m=p:GetMouse(); if m then return Vector2.new(m.X,m.Y) end end
+    return Vector2.new(0,0)
 end
 
--- Screen size
 local function screen()
-    local c = workspace.CurrentCamera
+    local c=workspace.CurrentCamera
     if c and c.ViewportSize then return c.ViewportSize end
-    return Vector2.new(1920, 1080)
+    return Vector2.new(1920,1080)
 end
 
--- Hit test
-local function hit(x, y, w, h)
-    local mp = mouse()
-    return mp.X >= x and mp.X <= x + w and mp.Y >= y and mp.Y <= y + h
+local function hit(x,y,w,h)
+    local mp=mouse(); return mp.X>=x and mp.X<=x+w and mp.Y>=y and mp.Y<=y+h
 end
 
 -- ─── INPUT ───────────────────────────────────────────────────────────────────
 
 local function pollInput()
-    for key, data in pairs(UILib._inputs) do
-        local ok, pressed = pcall(iskeypressed, data.id)
-        if not ok then pressed = false end
-        if pressed then
-            data.c = not data.h  -- just-pressed = true only on first frame
-            data.h = true
-        else
-            data.c = false
-            data.h = false
-        end
+    for _,data in pairs(UILib._inputs) do
+        local ok,p=pcall(iskeypressed,data.id)
+        if not ok then p=false end
+        if p then data.c=not data.h; data.h=true
+        else      data.c=false;      data.h=false end
     end
 end
 
 local function pressed(key) return UILib._inputs[key] and UILib._inputs[key].c end
 local function held(key)    return UILib._inputs[key] and UILib._inputs[key].h end
 
--- ─── HIDE ALL UI ─────────────────────────────────────────────────────────────
-
--- FIX: single authoritative function that hides every menu prefix
+-- hide everything — used when menu closes
 local function hideAll()
     hidePrefix('m_')
     hidePrefix('nav_')
-    hidePrefix('nav2_')   -- FIX: was missing in original
+    hidePrefix('nav2_')
     hidePrefix('s_')
     hidePrefix('dd_')
     hidePrefix('cp_')
@@ -260,95 +210,87 @@ end
 
 -- ─── PUBLIC API ──────────────────────────────────────────────────────────────
 
-function UILib:SetMenuSize(s)    self.w = s.x or self.w; self.h = s.y or self.h end
-function UILib:GetMenuSize()     return Vector2.new(self.w, self.h) end
-function UILib:SetMenuTitle(t,s) self.title = t; self.subtitle = s or '' end
-function UILib:SetProfile(u, s)  self.username = u; self.usertext = s or '' end
+function UILib:SetMenuSize(s)    self.w=s.x or self.w; self.h=s.y or self.h end
+function UILib:GetMenuSize()     return Vector2.new(self.w,self.h) end
+function UILib:SetMenuTitle(t,s) self.title=t; self.subtitle=s or '' end
+function UILib:SetProfile(u,s)   self.username=u; self.usertext=s or '' end
 
 function UILib:CenterMenu()
-    local ss = screen()
-    self.x = math.floor(ss.X / 2 - self.w / 2)
-    self.y = math.floor(ss.Y / 2 - self.h / 2)
+    local ss=screen()
+    self.x=math.floor(ss.X/2-self.w/2)
+    self.y=math.floor(ss.Y/2-self.h/2)
 end
 
-function UILib:Notification(text, time)
-    self._notif_id = self._notif_id + 1
-    table.insert(self._notifs, {
-        text = text,
-        time = time or 3,
-        id   = self._notif_id,
-        at   = os.clock(),
-    })
+function UILib:Notification(text,time)
+    self._notif_id=self._notif_id+1
+    table.insert(self._notifs,{text=text,time=time or 3,id=self._notif_id,at=os.clock()})
 end
 
 function UILib:UpdateFont(f)
-    self._font = f
-    for _, o in pairs(D) do
-        if o.Font ~= nil then pcall(function() o.Font = f end) end
+    self._font=f
+    for _,o in pairs(D) do
+        if o.Font~=nil then pcall(function() o.Font=f end) end
     end
 end
 
 function UILib:Unload()
     removePfx('')
-    pcall(setrobloxinput, true)
+    pcall(setrobloxinput,true)
 end
 
--- ─── TAB / SECTION / WIDGET BUILDER ─────────────────────────────────────────
+-- ─── BUILDER ─────────────────────────────────────────────────────────────────
 
 function UILib:Tab(name)
-    self._tree[name] = { _sec_order = {}, _items = {} }
-    table.insert(self._tab_order, name)
-    if not self._open_tab then self._open_tab = name end
-    return {
-        Section = function(_, sname) return UILib:_Section(name, sname) end
-    }
+    self._tree[name]={_sec_order={},_items={}}
+    table.insert(self._tab_order,name)
+    if not self._open_tab then self._open_tab=name end
+    return { Section=function(_,sname) return UILib:_Section(name,sname) end }
 end
 
-function UILib:_Section(tab, sname)
+function UILib:_Section(tab,sname)
     if not self._tree[tab]._items[sname] then
-        self._tree[tab]._items[sname] = { _widgets = {} }
-        table.insert(self._tree[tab]._sec_order, sname)
+        self._tree[tab]._items[sname]={_widgets={}}
+        table.insert(self._tree[tab]._sec_order,sname)
     end
-    local sec = self._tree[tab]._items[sname]
-    local function addWidget(w) table.insert(sec._widgets, w); return #sec._widgets end
+    local sec=self._tree[tab]._items[sname]
+    local function addWidget(w) table.insert(sec._widgets,w); return #sec._widgets end
     return {
-        Toggle = function(_, label, sub, val, cb, unsafe)
-            local id = addWidget({ type='toggle', label=label, sub=sub or '', value=val, cb=cb, unsafe=unsafe })
+        Toggle=function(_,label,sub,val,cb,unsafe)
+            local id=addWidget({type='toggle',label=label,sub=sub or '',value=val,cb=cb,unsafe=unsafe})
             return {
-                Set = function(_, v) sec._widgets[id].value = v; if cb then cb(v) end end,
-                AddColorpicker = function(_, lbl, val2, ow, cb2)
-                    sec._widgets[id].cp = { label=lbl, value=val2 or Color3.new(1,1,1), ow=ow, cb=cb2 }
-                    return { Set = function(_, v) sec._widgets[id].cp.value = v; if cb2 then cb2(v) end end }
+                Set=function(_,v) sec._widgets[id].value=v; if cb then cb(v) end end,
+                AddColorpicker=function(_,lbl,val2,ow,cb2)
+                    sec._widgets[id].cp={label=lbl,value=val2 or Color3.new(1,1,1),ow=ow,cb=cb2}
+                    return {Set=function(_,v) sec._widgets[id].cp.value=v; if cb2 then cb2(v) end end}
                 end,
-                AddKeybind = function(_, kval, mode, canChange, kcb)
-                    sec._widgets[id].kb = { value=kval, mode=mode or 'Toggle', canChange=canChange~=false, cb=kcb, listening=false }
-                    return { Set = function(_, v, m) local kb=sec._widgets[id].kb; kb.value=v; kb.mode=m or kb.mode; if kcb then kcb(v,kb.mode) end end }
+                AddKeybind=function(_,kval,mode,canChange,kcb)
+                    sec._widgets[id].kb={value=kval,mode=mode or 'Toggle',canChange=canChange~=false,cb=kcb,listening=false}
+                    return {Set=function(_,v,m) local kb=sec._widgets[id].kb; kb.value=v; kb.mode=m or kb.mode; if kcb then kcb(v,kb.mode) end end}
                 end,
             }
         end,
-        Slider = function(_, label, val, step, min, max, suffix, cb)
-            local id = addWidget({ type='slider', label=label, value=val, step=step, min=min, max=max, suffix=suffix or '', cb=cb })
-            return { Set = function(_, v) sec._widgets[id].value = v; if cb then cb(v) end end }
+        Slider=function(_,label,val,step,min,max,suffix,cb)
+            local id=addWidget({type='slider',label=label,value=val,step=step,min=min,max=max,suffix=suffix or '',cb=cb})
+            return {Set=function(_,v) sec._widgets[id].value=v; if cb then cb(v) end end}
         end,
-        Dropdown = function(_, label, val, choices, multi, cb)
-            if type(val) == 'string' then val = { val } end
-            local id = addWidget({ type='dropdown', label=label, value=val, choices=choices, multi=multi, cb=cb })
+        Dropdown=function(_,label,val,choices,multi,cb)
+            if type(val)=='string' then val={val} end
+            local id=addWidget({type='dropdown',label=label,value=val,choices=choices,multi=multi,cb=cb})
             return {
-                Set           = function(_, v) sec._widgets[id].value = v; if cb then cb(v) end end,
-                UpdateChoices = function(_, c) sec._widgets[id].choices = c end,
+                Set=function(_,v) sec._widgets[id].value=v; if cb then cb(v) end end,
+                UpdateChoices=function(_,c) sec._widgets[id].choices=c end,
             }
         end,
-        Button = function(_, label, sub, cb)
-            addWidget({ type='button', label=label, sub=sub or '', cb=cb })
-            return {}
+        Button=function(_,label,sub,cb)
+            addWidget({type='button',label=label,sub=sub or '',cb=cb}); return {}
         end,
-        Textbox = function(_, label, val, cb)
-            local id = addWidget({ type='textbox', label=label, value=val or '', cb=cb })
-            return { Set = function(_, v) sec._widgets[id].value = v; if cb then cb(v) end end }
+        Textbox=function(_,label,val,cb)
+            local id=addWidget({type='textbox',label=label,value=val or '',cb=cb})
+            return {Set=function(_,v) sec._widgets[id].value=v; if cb then cb(v) end end}
         end,
-        Colorpicker = function(_, label, val, cb)
-            local id = addWidget({ type='colorpicker', label=label, value=val or Color3.new(1,1,1), cb=cb })
-            return { Set = function(_, v) sec._widgets[id].value = v; if cb then cb(v) end end }
+        Colorpicker=function(_,label,val,cb)
+            local id=addWidget({type='colorpicker',label=label,value=val or Color3.new(1,1,1),cb=cb})
+            return {Set=function(_,v) sec._widgets[id].value=v; if cb then cb(v) end end}
         end,
     }
 end
@@ -356,680 +298,438 @@ end
 -- ─── DROPDOWN POPUP ──────────────────────────────────────────────────────────
 
 local function drawDropdown(click)
-    local dd = UILib._dd
+    local dd=UILib._dd
     if not dd then return click end
-
-    local iH    = 20
-    local total = #dd.choices * iH + 8
-
+    local iH=20; local total=#dd.choices*iH+8
     rect('dd_bg', dd.x, dd.y, dd.w, total, UILib.C.card)
-    ln('dd_bor_t', dd.x,        dd.y,        dd.x+dd.w, dd.y,        UILib.C.div)
-    ln('dd_bor_b', dd.x,        dd.y+total,  dd.x+dd.w, dd.y+total,  UILib.C.div)
-    ln('dd_bor_l', dd.x,        dd.y,        dd.x,      dd.y+total,  UILib.C.div)
-    ln('dd_bor_r', dd.x+dd.w,   dd.y,        dd.x+dd.w, dd.y+total,  UILib.C.div)
-
-    -- FIX: track whether the click landed inside the dropdown
-    local clickedInside = false
-
-    for i, ch in ipairs(dd.choices) do
-        local cy    = dd.y + 4 + (i - 1) * iH
-        local found = table.find(dd.value, ch)
-
-        if hit(dd.x + 2, cy, dd.w - 4, iH) then
-            rect('dd_hov', dd.x + 2, cy, dd.w - 4, iH, UILib.C.navhi)
+    ln('dd_bor_t', dd.x,       dd.y,       dd.x+dd.w, dd.y,       UILib.C.div)
+    ln('dd_bor_b', dd.x,       dd.y+total, dd.x+dd.w, dd.y+total, UILib.C.div)
+    ln('dd_bor_l', dd.x,       dd.y,       dd.x,       dd.y+total, UILib.C.div)
+    ln('dd_bor_r', dd.x+dd.w,  dd.y,       dd.x+dd.w, dd.y+total, UILib.C.div)
+    local clickedInside=false
+    for i,ch in ipairs(dd.choices) do
+        local cy=dd.y+4+(i-1)*iH
+        local found=table.find(dd.value,ch)
+        if hit(dd.x+2,cy,dd.w-4,iH) then
+            rect('dd_hov_'..i, dd.x+2, cy, dd.w-4, iH, UILib.C.navhi)
             if click then
-                clickedInside = true
+                clickedInside=true
                 if dd.multi then
-                    if found then table.remove(dd.value, found)
-                    else           table.insert(dd.value, ch) end
-                else
-                    dd.value = { ch }
-                end
+                    if found then table.remove(dd.value,found) else table.insert(dd.value,ch) end
+                else dd.value={ch} end
                 if dd.cb then dd.cb(dd.value) end
-                -- FIX: close on single-select, keep open on multi
-                if not dd.multi then
-                    UILib._dd = nil
-                    hidePrefix('dd_')
-                    return false
-                end
+                if not dd.multi then UILib._dd=nil; hidePrefix('dd_'); return false end
             end
-        else
-            hide('dd_hov_' .. i)
-        end
-        txt('dd_ch_' .. i, dd.x + 8, cy + 4, ch, found and UILib.C.accent or UILib.C.text, 12)
+        else hide('dd_hov_'..i) end
+        txt('dd_ch_'..i, dd.x+8, cy+4, ch, found and UILib.C.accent or UILib.C.text, 12)
     end
-
-    -- FIX: click outside dropdown closes it
-    if click and not clickedInside then
-        UILib._dd = nil
-        hidePrefix('dd_')
-        return false
-    end
-
+    if click and not clickedInside then UILib._dd=nil; hidePrefix('dd_'); return false end
     return click
 end
 
 -- ─── COLORPICKER POPUP ───────────────────────────────────────────────────────
 
--- FIX: returns both click (potentially consumed) — signature unchanged but logic corrected
-local function drawColorpicker(heldM, click)
-    local cp = UILib._cp
+local function drawColorpicker(heldM,click)
+    local cp=UILib._cp
     if not cp then return click end
-
-    local cW, cH = 200, 195
-    local cx, cy = cp.x, cp.y
-
+    local cW,cH=200,195
+    local cx,cy=cp.x,cp.y
     rect('cp_bg', cx, cy, cW, cH, UILib.C.card)
-    txt('cp_lbl', cx + 8, cy + 6, cp.label, UILib.C.text, 12)
-
-    local pX, pY, pW = cx + 8, cy + 22, cW - 16
-    local hH  = 12
-    local palH = (cH - 50) - hH - 6
-
-    -- Palette base (solid hue)
-    rect('cp_pal', pX, pY, pW, palH, Color3.fromHSV(cp.h, 1, 1))
-
-    -- White → transparent horizontal gradient (16 slices)
-    for i = 1, 16 do
-        sq('cp_wh_'..i, pX + (i-1)*(pW/16), pY, pW/16+1, palH, Color3.fromRGB(255,255,255), (i-1)/15)
+    txt('cp_lbl', cx+8, cy+6, cp.label, UILib.C.text, 12)
+    local pX,pY,pW=cx+8,cy+22,cW-16
+    local hH=12; local palH=(cH-50)-hH-6
+    rect('cp_pal', pX, pY, pW, palH, Color3.fromHSV(cp.h,1,1))
+    for i=1,16 do
+        sq('cp_wh_'..i, pX+(i-1)*(pW/16), pY, pW/16+1, palH, Color3.fromRGB(255,255,255), (i-1)/15)
     end
-    -- Black → transparent vertical gradient (16 slices)
-    for i = 1, 16 do
-        sq('cp_bk_'..i, pX, pY + (i-1)*(palH/16), pW, palH/16+1, Color3.fromRGB(0,0,0), 1-(i-1)/15)
+    for i=1,16 do
+        sq('cp_bk_'..i, pX, pY+(i-1)*(palH/16), pW, palH/16+1, Color3.fromRGB(0,0,0), 1-(i-1)/15)
     end
-
-    -- Hue bar
-    local hY = pY + palH + 6
-    local hueColors = {
-        Color3.fromRGB(255,0,0), Color3.fromRGB(255,255,0), Color3.fromRGB(0,255,0),
-        Color3.fromRGB(0,255,255), Color3.fromRGB(0,0,255), Color3.fromRGB(255,0,255),
-        Color3.fromRGB(255,0,0),
-    }
-    for i = 1, 6 do
-        local c1, c2 = hueColors[i], hueColors[i+1]
-        local segW = pW / 6
-        for j = 1, 8 do
-            local t2 = (j-1)/7
-            local lc = Color3.new(lerp(c1.R,c2.R,t2), lerp(c1.G,c2.G,t2), lerp(c1.B,c2.B,t2))
-            sq('cp_h_'..i..'_'..j, pX + (i-1)*segW + (j-1)*(segW/8), hY, segW/8+1, hH, lc)
+    local hY=pY+palH+6
+    local hueColors={Color3.fromRGB(255,0,0),Color3.fromRGB(255,255,0),Color3.fromRGB(0,255,0),Color3.fromRGB(0,255,255),Color3.fromRGB(0,0,255),Color3.fromRGB(255,0,255),Color3.fromRGB(255,0,0)}
+    for i=1,6 do
+        local c1,c2=hueColors[i],hueColors[i+1]; local segW=pW/6
+        for j=1,8 do
+            local t2=(j-1)/7
+            sq('cp_h_'..i..'_'..j, pX+(i-1)*segW+(j-1)*(segW/8), hY, segW/8+1, hH,
+               Color3.new(lerp(c1.R,c2.R,t2),lerp(c1.G,c2.G,t2),lerp(c1.B,c2.B,t2)))
         end
     end
-
-    -- SV cursor
-    sq('cp_dot',  pX + cp.s*pW - 4,   pY + (1-cp.v)*palH - 4, 8, 8, UILib.C.white)
-    -- Hue cursor
-    sq('cp_hdot', pX + cp.h*pW - 3,   hY,                      6, hH, UILib.C.white)
-
-    -- Current color swatch
-    local nc = Color3.fromHSV(cp.h, cp.s, cp.v)
+    sq('cp_dot',  pX+cp.s*pW-4,  pY+(1-cp.v)*palH-4, 8, 8,  UILib.C.white)
+    sq('cp_hdot', pX+cp.h*pW-3,  hY,                  6, hH, UILib.C.white)
+    local nc=Color3.fromHSV(cp.h,cp.s,cp.v)
     sq('cp_sw', cx+8, cy+cH-14, cW-16, 10, nc)
-
-    -- Fire callback every frame so live preview works
     if cp.cb then cp.cb(nc) end
-
-    -- Interaction: drag palette / hue bar
-    local mp = mouse()
+    local mp=mouse()
     if heldM then
-        if hit(pX, pY, pW, palH) then
-            cp.s = clamp((mp.X - pX) / pW, 0, 1)
-            cp.v = 1 - clamp((mp.Y - pY) / palH, 0, 1)
+        if hit(pX,pY,pW,palH) then
+            cp.s=clamp((mp.X-pX)/pW,0,1); cp.v=1-clamp((mp.Y-pY)/palH,0,1)
         end
-        if hit(pX, hY, pW, hH) then
-            cp.h = clamp((mp.X - pX) / pW, 0, 1)
-        end
+        if hit(pX,hY,pW,hH) then cp.h=clamp((mp.X-pX)/pW,0,1) end
     end
-
-    -- FIX: click outside closes picker (consume the click)
-    if click and not hit(cx, cy, cW, cH) then
-        UILib._cp = nil
-        hidePrefix('cp_')
-        return false
+    if click and not hit(cx,cy,cW,cH) then
+        UILib._cp=nil; hidePrefix('cp_'); return false
     end
-
     return click
 end
 
 -- ─── MAIN STEP ───────────────────────────────────────────────────────────────
-
---[[
-    IMPORTANT: Call this every frame via RenderStepped, NOT a while loop.
-
-    game:GetService("RunService").RenderStepped:Connect(function()
-        UILib:Step()
-    end)
-]]
+-- Call this every frame via RenderStepped — NOT a while/task.wait loop.
 
 function UILib:Step()
-    local C = self.C
-
-    -- Poll all keys FIRST (before setrobloxinput)
+    local C=self.C
     pollInput()
+    local click=pressed('m1'); local heldM=held('m1')
 
-    local click  = pressed('m1')
-    local heldM  = held('m1')
-    local rclick = pressed('m2')
-
-    -- FIX: Toggle menu only on a fresh just-pressed event.
-    -- Original had no guard so rapid calls could double-flip.
     if pressed(self._menu_key) then
-        self._menu_open   = not self._menu_open
-        self._toggle_guard = true
+        self._menu_open=not self._menu_open
     end
-
-    -- Lock / unlock Roblox input
     pcall(setrobloxinput, not self._menu_open)
 
-    -- ── NOTIFICATIONS (drawn regardless of menu state) ──────────────────────
-    local nx0, ny0 = self.x + self.w + 8, self.y
-    local ntH = 0
-    for ni = #self._notifs, 1, -1 do
-        local n  = self._notifs[ni]
-        local el = os.clock() - n.at
-        local fade = clamp(
-            el < 0.3 and el/0.3 or (el > n.time and 1-(el-n.time)/0.3 or 1),
-            0, 1
-        )
-        if fade > 0.01 then
-            local nW = math.max(tbounds(n.text, 12).X + 20, 160)
-            local nH = 24
-            local nnx = nx0 + (nW+8) * (1-fade)
-            local nny = ny0 + ntH
-            rect('n_'..n.id..'_bg', nnx, nny, nW, nH, C.card,   1-fade)
-            txt( 'n_'..n.id..'_t',  nnx+8, nny+6, n.text, C.text, 12, false, false, 1-fade)
-            sq(  'n_'..n.id..'_p',  nnx+2, nny+nH-3, (nW-4)*clamp(el/n.time,0,1), 2, C.accent, 1-fade)
-            ntH = ntH + nH + 4
+    -- notifications (always drawn)
+    local nx0,ny0=self.x+self.w+8,self.y; local ntH=0
+    for ni=#self._notifs,1,-1 do
+        local n=self._notifs[ni]; local el=os.clock()-n.at
+        local fade=clamp(el<0.3 and el/0.3 or (el>n.time and 1-(el-n.time)/0.3 or 1),0,1)
+        if fade>0.01 then
+            local nW=math.max(tbounds(n.text,12).X+20,160); local nH=24
+            local nnx=nx0+(nW+8)*(1-fade); local nny=ny0+ntH
+            rect('n_'..n.id..'_bg', nnx,nny,nW,nH, C.card, 1-fade)
+            txt( 'n_'..n.id..'_t',  nnx+8,nny+6, n.text, C.text, 12, false,false, 1-fade)
+            sq(  'n_'..n.id..'_p',  nnx+2,nny+nH-3, (nW-4)*clamp(el/n.time,0,1), 2, C.accent, 1-fade)
+            ntH=ntH+nH+4
         end
-        if el > n.time + 0.4 then
-            removePfx('n_'..n.id..'_')
-            table.remove(self._notifs, ni)
-        end
+        if el>n.time+0.4 then removePfx('n_'..n.id..'_'); table.remove(self._notifs,ni) end
     end
 
-    -- ── MENU CLOSED ─────────────────────────────────────────────────────────
-    -- FIX: hide ALL prefixes including nav2_ which the original missed
-    if not self._menu_open then
-        hideAll()
-        return
-    end
+    if not self._menu_open then hideAll(); return end
 
-    -- ── DRAG ────────────────────────────────────────────────────────────────
+    -- drag
     if heldM and self._drag then
-        local mp = mouse()
-        self.x = mp.X - self._drag.X
-        self.y = mp.Y - self._drag.Y
-    elseif not heldM then
-        self._drag = nil
+        local mp=mouse(); self.x=mp.X-self._drag.X; self.y=mp.Y-self._drag.Y
+    elseif not heldM then self._drag=nil end
+
+    local x,y,w,h=self.x,self.y,self.w,self.h
+    local sw,pad=self._sw,self._pad
+    local tbH=32
+
+    rect('m_bg', x,y,w,h, C.bg)
+
+    -- title bar
+    rect('m_tb', x,y,w,tbH, C.side)
+    txt('m_title', x+pad+4,y+8, self.title, C.text, 14)
+    local tW=tbounds(self.title,14).X
+    txt('m_sub', x+pad+4+tW+6,y+10, self.subtitle, C.sub, 11)
+    sq('m_dr', x+w-14,y+11,10,10, Color3.fromRGB(255,95,86))
+    sq('m_dy', x+w-28,y+11,10,10, Color3.fromRGB(255,189,46))
+    sq('m_dg', x+w-42,y+11,10,10, Color3.fromRGB(39,201,63))
+    if click and hit(x,y,w-50,tbH) and not self._drag then
+        local mp=mouse(); self._drag=Vector2.new(mp.X-x,mp.Y-y); click=false
     end
 
-    local x, y, w, h = self.x, self.y, self.w, self.h
-    local sw, pad = self._sw, self._pad
-    local tbH = 32  -- title bar height
+    -- sidebar
+    local sbX,sbY,sbH=x,y+tbH,h-tbH
+    rect('m_sb', sbX,sbY,sw,sbH, C.side)
+    ln('m_sdiv', sbX+sw,sbY, sbX+sw,sbY+sbH, C.div)
 
-    -- ── OUTER BG ────────────────────────────────────────────────────────────
-    rect('m_bg', x, y, w, h, C.bg)
-
-    -- ── TITLE BAR ───────────────────────────────────────────────────────────
-    rect('m_tb', x, y, w, tbH, C.side)
-    txt('m_title', x+pad+4, y+8,  self.title,    C.text, 14)
-    local tW = tbounds(self.title, 14).X
-    txt('m_sub',   x+pad+4+tW+6, y+10, self.subtitle, C.sub, 11)
-    -- Window control dots
-    sq('m_dr', x+w-14, y+11, 10, 10, Color3.fromRGB(255,95,86))
-    sq('m_dy', x+w-28, y+11, 10, 10, Color3.fromRGB(255,189,46))
-    sq('m_dg', x+w-42, y+11, 10, 10, Color3.fromRGB(39,201,63))
-    -- Drag via title bar
-    if click and hit(x, y, w-50, tbH) and not self._drag then
-        local mp = mouse()
-        self._drag = Vector2.new(mp.X - x, mp.Y - y)
-        click = false
-    end
-
-    -- ── SIDEBAR ─────────────────────────────────────────────────────────────
-    local sbX, sbY, sbH = x, y + tbH, h - tbH
-    rect('m_sb', sbX, sbY, sw, sbH, C.side)
-    ln('m_sdiv', sbX+sw, sbY, sbX+sw, sbY+sbH, C.div)
-
-    -- Search bar
-    local srX, srY, srW, srH = sbX+pad, sbY+pad, sw-pad*2, 26
-    rect('m_sr', srX, srY, srW, srH, C.srch)
-    ln('m_sr_t', srX,     srY,     srX+srW, srY,     C.div)
-    ln('m_sr_b', srX,     srY+srH, srX+srW, srY+srH, C.div)
-    ln('m_sr_l', srX,     srY,     srX,     srY+srH, C.div)
-    ln('m_sr_r', srX+srW, srY,     srX+srW, srY+srH, C.div)
-
-    local isSrch = self._ctx == 'search'
-    if isSrch then
-        ln('m_sr_hl', srX, srY, srX+srW, srY, C.accent)
-    else
-        hide('m_sr_hl')
-    end
-
+    -- search
+    local srX,srY,srW,srH=sbX+pad,sbY+pad,sw-pad*2,26
+    rect('m_sr', srX,srY,srW,srH, C.srch)
+    ln('m_sr_t', srX,srY,     srX+srW,srY,     C.div)
+    ln('m_sr_b', srX,srY+srH, srX+srW,srY+srH, C.div)
+    ln('m_sr_l', srX,srY,     srX,    srY+srH, C.div)
+    ln('m_sr_r', srX+srW,srY, srX+srW,srY+srH, C.div)
+    local isSrch=self._ctx=='search'
+    if isSrch then ln('m_sr_hl', srX,srY, srX+srW,srY, C.accent)
+    else hide('m_sr_hl') end
     local srDisp
-    if isSrch then
-        srDisp = self._search .. (math.floor(os.clock()*2) % 2 == 0 and '|' or ' ')
-    else
-        srDisp = self._search == '' and 'Search...' or self._search
-    end
-    txt('m_sr_t2', srX+6, srY+7, srDisp, self._search == '' and C.sub or C.text, 12)
-
+    if isSrch then srDisp=self._search..(math.floor(os.clock()*2)%2==0 and '|' or ' ')
+    else srDisp=self._search=='' and 'Search...' or self._search end
+    txt('m_sr_t2', srX+6,srY+7, srDisp, self._search=='' and C.sub or C.text, 12)
     if click then
-        if hit(srX, srY, srW, srH) then
-            self._ctx = 'search'; click = false
-        elseif isSrch then
-            self._ctx = nil
-        end
+        if hit(srX,srY,srW,srH) then self._ctx='search'; click=false
+        elseif isSrch then self._ctx=nil end
     end
-
     if isSrch then
-        local cm = { space=' ', dash='-', period='.', comma=',', slash='/' }
-        local sh = held('lshift') or held('rshift')
-        local sm = { ['1']='!',['2']='@',['3']='#',['4']='$',['5']='%',
-                     ['6']='^',['7']='&',['8']='*',['9']='(',['0']=')' }
+        local cm={space=' ',dash='-',period='.',comma=',',slash='/'}
+        local sh=held('lshift') or held('rshift')
+        local sm={['1']='!',['2']='@',['3']='#',['4']='$',['5']='%',['6']='^',['7']='&',['8']='*',['9']='(',['0']=')'}
         for ch in pairs(self._inputs) do
             if pressed(ch) then
-                local m = cm[ch] or ch
-                if m == 'enter' or m == 'esc' then
-                    self._ctx = nil
-                elseif m == 'unbound' then
-                    self._search = self._search:sub(1, -2)
-                elseif #m == 1 then
-                    if sh and sm[m] then m = sm[m] elseif sh then m = m:upper() end
-                    self._search = self._search .. m
+                local m=cm[ch] or ch
+                if m=='enter' or m=='esc' then self._ctx=nil
+                elseif m=='unbound' then self._search=self._search:sub(1,-2)
+                elseif #m==1 then
+                    if sh and sm[m] then m=sm[m] elseif sh then m=m:upper() end
+                    self._search=self._search..m
                 end
             end
         end
     end
 
-    -- Nav items
-    local navY = srY + srH + 6
-    for _, tname in ipairs(self._tab_order) do
-        local isOpen = self._open_tab == tname
-        rect('nav_'..tname..'_bg', sbX+pad, navY, sw-pad*2, 28, isOpen and C.navhi or C.side)
-        if isOpen then
-            sq('nav_'..tname..'_bar', sbX+pad, navY+4, 3, 20, C.accent)
-        else
-            hide('nav_'..tname..'_bar')
+    -- nav
+    local navY=srY+srH+6
+    for _,tname in ipairs(self._tab_order) do
+        local isOpen=self._open_tab==tname
+        rect('nav_'..tname..'_bg', sbX+pad,navY, sw-pad*2,28, isOpen and C.navhi or C.side)
+        if isOpen then sq('nav_'..tname..'_bar', sbX+pad,navY+4,3,20, C.accent)
+        else hide('nav_'..tname..'_bar') end
+        txt('nav_'..tname..'_t', sbX+pad+10,navY+8, tname, isOpen and C.text or C.sub, 12)
+        if click and hit(sbX+pad,navY,sw-pad*2,28) and not isOpen then
+            self._open_tab=tname; self._scroll=0; self._scrollT=0; click=false
         end
-        txt('nav_'..tname..'_t', sbX+pad+10, navY+8, tname, isOpen and C.text or C.sub, 12)
-
-        if click and hit(sbX+pad, navY, sw-pad*2, 28) and not isOpen then
-            self._open_tab = tname
-            self._scroll   = 0
-            self._scrollT  = 0
-            click = false
-        end
-        navY = navY + 28 + 3
+        navY=navY+28+3
     end
 
-    -- Profile footer
-    local pfY = sbY + sbH - 38
-    ln('m_pfl',    sbX+6,      pfY,    sbX+sw-6,   pfY,    C.div)
-    rect('m_pfbg', sbX,        pfY,    sw,          38,     C.side)
-    sq('m_pfav',   sbX+pad,    pfY+7,  24, 24,              C.accdim)
-    txt('m_pfav_l',sbX+pad+12, pfY+13, (self.username or 'P'):sub(1,1):upper(), C.accent, 11, true)
-    txt('m_pfname',sbX+pad+28, pfY+8,  self.username or '', C.text, 11)
-    txt('m_pfsub', sbX+pad+28, pfY+20, self.usertext or '', C.sub, 10)
+    -- profile
+    local pfY=sbY+sbH-38
+    ln('m_pfl', sbX+6,pfY, sbX+sw-6,pfY, C.div)
+    rect('m_pfbg', sbX,pfY,sw,38, C.side)
+    sq('m_pfav', sbX+pad,pfY+7,24,24, C.accdim)
+    txt('m_pfav_l', sbX+pad+12,pfY+13, (self.username or 'P'):sub(1,1):upper(), C.accent, 11, true)
+    txt('m_pfname', sbX+pad+28,pfY+8,  self.username or '', C.text, 11)
+    txt('m_pfsub',  sbX+pad+28,pfY+20, self.usertext or '',  C.sub,  10)
 
-    -- ── CONTENT AREA ────────────────────────────────────────────────────────
-    local cX, cY, cW, cH = x+sw+1, y+tbH, w-sw-1, h-tbH
-    rect('m_ct', cX, cY, cW, cH, C.content)
+    -- content area
+    local cX=x+sw+1; local cY=y+tbH; local cW=w-sw-1; local cH=h-tbH
+    rect('m_ct', cX,cY,cW,cH, C.content)
+    local chH=34
+    rect('m_chbg', cX,cY,cW,chH, C.content)
+    txt('m_chtxt',  cX+pad+4,cY+10, self._open_tab or '', C.text, 14)
+    ln('m_chdiv',   cX+6,cY+chH, cX+cW-6,cY+chH, C.div)
 
-    local chH = 34
-    rect('m_chbg', cX, cY, cW, chH, C.content)
-    txt('m_chtxt',  cX+pad+4, cY+10, self._open_tab or '', C.text, 14)
-    ln('m_chdiv',   cX+6, cY+chH, cX+cW-6, cY+chH, C.div)
+    if pressed('up')   then self._scrollT=math.max(0,self._scrollT-35) end
+    if pressed('down') then self._scrollT=self._scrollT+35 end
+    self._scroll=lerp(self._scroll,self._scrollT,0.2)
 
-    -- Scroll
-    if pressed('up')   then self._scrollT = math.max(0, self._scrollT - 35) end
-    if pressed('down') then self._scrollT = self._scrollT + 35 end
-    self._scroll = lerp(self._scroll, self._scrollT, 0.2)
-
-    -- ── WIDGETS ─────────────────────────────────────────────────────────────
-    local sq2     = self._search:lower()
-    local tabData = self._open_tab and self._tree[self._open_tab]
-
-    -- Hide all widgets for inactive tabs
-    for _, tname in ipairs(self._tab_order) do
-        if tname ~= self._open_tab then
-            local td = self._tree[tname]
+    -- hide inactive tabs
+    for _,tname in ipairs(self._tab_order) do
+        if tname~=self._open_tab then
+            local td=self._tree[tname]
             if td then
-                for _, sn in ipairs(td._sec_order or {}) do
-                    hidePrefix('s_'..tname..'_'..sn)
-                end
+                for _,sn in ipairs(td._sec_order or {}) do hidePrefix('s_'..tname..'_'..sn) end
             end
         end
     end
 
-    local contentMaxY = cY + chH -- track the bottom of drawn content for scroll clamping
+    local sq2=self._search:lower()
+    local tabData=self._open_tab and self._tree[self._open_tab]
+    local contentMaxY=cY+chH
 
     if tabData then
-        local wY  = cY + chH + pad - math.floor(self._scroll)
-        local wX  = cX + pad
-        local wW  = cW - pad * 2
-        local clipTop = cY + chH
-        local clipBot = cY + cH
+        local wY=cY+chH+pad-math.floor(self._scroll)
+        local wX=cX+pad; local wW=cW-pad*2
+        local clipTop=cY+chH; local clipBot=cY+cH
 
-        for _, sname in ipairs(tabData._sec_order or {}) do
-            local sec  = tabData._items[sname]
+        for _,sname in ipairs(tabData._sec_order or {}) do
+            local sec=tabData._items[sname]
             if not sec then goto continue_sec end
+            local slid='s_'..self._open_tab..'_'..sname
 
-            local slid = 's_'..self._open_tab..'_'..sname
+            if wY>=clipTop-20 and wY<=clipBot then
+                txt(slid..'_hdr', wX+2,wY+3, sname:upper(), C.sub, 10)
+            else hide(slid..'_hdr') end
+            wY=wY+18
 
-            -- Section header
-            if wY >= clipTop - 20 and wY <= clipBot then
-                txt(slid..'_hdr', wX+2, wY+3, sname:upper(), C.sub, 10)
-            else
-                hide(slid..'_hdr')
-            end
-            wY = wY + 18
-
-            for wi, w2 in ipairs(sec._widgets) do
-                local wid   = slid..'_'..wi
-                local wType = w2.type
-                local hasSub = (w2.sub or '') ~= ''
-
+            for wi,w2 in ipairs(sec._widgets) do
+                local wid=slid..'_'..wi
+                local wType=w2.type
+                local hasSub=(w2.sub or '')~=''
                 local iH
-                if wType == 'toggle' or wType == 'button' then
-                    iH = hasSub and 52 or 34
-                elseif wType == 'slider' then
-                    iH = 46
-                elseif wType == 'dropdown' then
-                    iH = 46
-                elseif wType == 'textbox' then
-                    iH = 38
-                else
-                    iH = 34
-                end
+                if     wType=='toggle' or wType=='button' then iH=hasSub and 52 or 34
+                elseif wType=='slider'   then iH=46
+                elseif wType=='dropdown' then iH=46
+                elseif wType=='textbox'  then iH=38
+                else                          iH=34 end
 
-                -- Search filter
-                if sq2 ~= '' and not w2.label:lower():find(sq2, 1, true) then
-                    hidePrefix(wid)
-                    wY = wY + iH + 4
+                -- search filter
+                if sq2~='' and not w2.label:lower():find(sq2,1,true) then
+                    hidePrefix(wid); wY=wY+iH+4
                     goto continue_widget
                 end
 
-                -- Clip (don't draw offscreen widgets)
-                if wY + iH <= clipTop or wY >= clipBot then
-                    hidePrefix(wid)
-                    wY = wY + iH + 4
+                -- clip
+                if wY+iH<=clipTop or wY>=clipBot then
+                    hidePrefix(wid); wY=wY+iH+4
                     goto continue_widget
                 end
 
-                -- Card background
-                local isHov = hit(wX, wY, wW, iH)
-                rect(wid..'_bg', wX, wY, wW, iH, isHov and C.cardhov or C.card)
+                local isHov=hit(wX,wY,wW,iH)
+                rect(wid..'_bg', wX,wY,wW,iH, isHov and C.cardhov or C.card)
 
-                -- ── TOGGLE ──────────────────────────────────────────────────
-                if wType == 'toggle' then
-                    local hasCP = w2.cp ~= nil
-
-                    -- Colorpicker swatch (inline)
+                if wType=='toggle' then
+                    local hasCP=w2.cp~=nil
                     if hasCP then
-                        local csz = 18
-                        local cx2 = wX + wW - csz - 8
-                        local cy2 = wY + (iH - csz) / 2
-                        sq(wid..'_cp', cx2, cy2, csz, csz, w2.cp.value)
-                        ln(wid..'_cpb_t', cx2,     cy2,     cx2+csz, cy2,     C.div)
-                        ln(wid..'_cpb_b', cx2,     cy2+csz, cx2+csz, cy2+csz, C.div)
-                        ln(wid..'_cpb_l', cx2,     cy2,     cx2,     cy2+csz, C.div)
-                        ln(wid..'_cpb_r', cx2+csz, cy2,     cx2+csz, cy2+csz, C.div)
-                        if click and hit(cx2, cy2, csz, csz) then
-                            local h2, s2, v2 = rgbToHsv(w2.cp.value.R, w2.cp.value.G, w2.cp.value.B)
-                            local ppx = cX + cW + 4
-                            if ppx + 200 > screen().X then ppx = cX - 204 end
-                            UILib._cp = {
-                                x=ppx, y=cY, label=w2.cp.label,
+                        local csz=18; local cx2=wX+wW-csz-8; local cy2=wY+(iH-csz)/2
+                        sq(wid..'_cp', cx2,cy2,csz,csz, w2.cp.value)
+                        ln(wid..'_cpb_t', cx2,cy2,     cx2+csz,cy2,     C.div)
+                        ln(wid..'_cpb_b', cx2,cy2+csz, cx2+csz,cy2+csz, C.div)
+                        ln(wid..'_cpb_l', cx2,cy2,     cx2,    cy2+csz, C.div)
+                        ln(wid..'_cpb_r', cx2+csz,cy2, cx2+csz,cy2+csz, C.div)
+                        if click and hit(cx2,cy2,csz,csz) then
+                            local h2,s2,v2=rgbToHsv(w2.cp.value.R,w2.cp.value.G,w2.cp.value.B)
+                            local ppx=cX+cW+4; if ppx+200>screen().X then ppx=cX-204 end
+                            UILib._cp={x=ppx,y=cY,label=w2.cp.label,
                                 cb=function(c) w2.cp.value=c; if w2.cp.cb then w2.cp.cb(c) end end,
-                                h=h2, s=s2, v=v2,
-                            }
-                            click = false
+                                h=h2,s=s2,v=v2}
+                            click=false
                         end
                     else
                         hide(wid..'_cp')
                         hide(wid..'_cpb_t'); hide(wid..'_cpb_b')
                         hide(wid..'_cpb_l'); hide(wid..'_cpb_r')
                     end
-
-                    -- Toggle pill
-                    local tr = hasCP and (wW - 56) or (wW - 50)
-                    local tX = wX + tr
-                    local tY = wY + (iH - 18) / 2
-                    local onC = w2.unsafe and Color3.fromRGB(255,180,0) or C.accent
-
-                    sq(wid..'_trk', tX,                        tY,   34, 18, w2.value and onC or C.trkoff)
-                    sq(wid..'_thm', w2.value and tX+16 or tX+2, tY+2, 14, 14, C.white)
-
-                    if click and hit(tX, tY, 34, 18) then
-                        w2.value = not w2.value
-                        if w2.cb then w2.cb(w2.value) end
-                        click = false
+                    local tr=hasCP and (wW-56) or (wW-50)
+                    local tX=wX+tr; local tY2=wY+(iH-18)/2
+                    local onC=w2.unsafe and Color3.fromRGB(255,180,0) or C.accent
+                    sq(wid..'_trk', tX,tY2,34,18, w2.value and onC or C.trkoff)
+                    sq(wid..'_thm', w2.value and tX+16 or tX+2, tY2+2,14,14, C.white)
+                    if click and hit(tX,tY2,34,18) then
+                        w2.value=not w2.value; if w2.cb then w2.cb(w2.value) end; click=false
                     end
+                    txt(wid..'_lbl', wX+10,wY+8, w2.label, C.text, 13)
+                    if hasSub then txt(wid..'_sub', wX+10,wY+22, w2.sub, C.sub, 11)
+                    else hide(wid..'_sub') end
 
-                    txt(wid..'_lbl', wX+10, wY+8, w2.label, C.text, 13)
-                    if hasSub then
-                        txt(wid..'_sub', wX+10, wY+22, w2.sub, C.sub, 11)
-                    else
-                        hide(wid..'_sub')
-                    end
-
-                -- ── SLIDER ──────────────────────────────────────────────────
-                elseif wType == 'slider' then
-                    txt(wid..'_lbl', wX+10, wY+6, w2.label, C.text, 12)
-                    local vt = tostring(w2.value) .. w2.suffix
-                    txt(wid..'_val', wX+wW-tbounds(vt,11).X-8, wY+6, vt, C.accent, 11)
-
-                    local slX  = wX + 10
-                    local slY2 = wY + 26
-                    local slW  = wW - 20
-                    local pct  = clamp((w2.value - w2.min) / (w2.max - w2.min), 0, 1)
-
-                    sq(wid..'_trk',  slX,                    slY2,   slW,           4, C.trkoff)
-                    if pct > 0 then
-                        sq(wid..'_fill', slX, slY2, math.max(2, slW*pct), 4, C.accent)
-                    else
-                        hide(wid..'_fill')
-                    end
-                    sq(wid..'_thm', slX + slW*pct - 5, slY2 - 3, 10, 10, C.white)
-
-                    -- FIX: start drag only on initial click over slider, release on mouse-up
+                elseif wType=='slider' then
+                    txt(wid..'_lbl', wX+10,wY+6, w2.label, C.text, 12)
+                    local vt=tostring(w2.value)..w2.suffix
+                    txt(wid..'_val', wX+wW-tbounds(vt,11).X-8,wY+6, vt, C.accent, 11)
+                    local slX=wX+10; local slY2=wY+26; local slW=wW-20
+                    sq(wid..'_trk', slX,slY2,slW,4, C.trkoff)
+                    local pct=clamp((w2.value-w2.min)/(w2.max-w2.min),0,1)
+                    if pct>0 then sq(wid..'_fill', slX,slY2, math.max(2,slW*pct),4, C.accent)
+                    else hide(wid..'_fill') end
+                    sq(wid..'_thm', slX+slW*pct-5,slY2-3,10,10, C.white)
                     if heldM then
-                        if click and hit(slX-4, slY2-6, slW+8, 16) then
-                            self._slider_drag = wid
-                            click = false
+                        if click and hit(slX-4,slY2-6,slW+8,16) then self._slider_drag=wid; click=false end
+                        if self._slider_drag==wid then
+                            local mp=mouse()
+                            local np=clamp((mp.X-slX)/slW,0,1)
+                            local nv=math.floor(((w2.min+(w2.max-w2.min)*np)/w2.step)+0.5)*w2.step
+                            nv=clamp(nv,w2.min,w2.max)
+                            if nv~=w2.value then w2.value=nv; if w2.cb then w2.cb(nv) end end
                         end
-                        if self._slider_drag == wid then
-                            local mp   = mouse()
-                            local np   = clamp((mp.X - slX) / slW, 0, 1)
-                            local nv   = math.floor(((w2.min + (w2.max-w2.min)*np) / w2.step) + 0.5) * w2.step
-                            nv = clamp(nv, w2.min, w2.max)
-                            if nv ~= w2.value then
-                                w2.value = nv
-                                if w2.cb then w2.cb(nv) end
-                            end
-                        end
-                    else
-                        -- FIX: always clear drag on mouse-up (original only cleared inside heldM block)
-                        if self._slider_drag == wid then
-                            self._slider_drag = nil
-                        end
+                    else self._slider_drag=nil end
+
+                elseif wType=='dropdown' then
+                    txt(wid..'_lbl', wX+10,wY+6, w2.label, C.text, 12)
+                    local dBX=wX+10; local dBY=wY+22; local dBW=wW-20; local dBH=18
+                    rect(wid..'_box', dBX,dBY,dBW,dBH, C.srch)
+                    ln(wid..'_bt', dBX,dBY,     dBX+dBW,dBY,     C.div)
+                    ln(wid..'_bb', dBX,dBY+dBH, dBX+dBW,dBY+dBH, C.div)
+                    ln(wid..'_bl', dBX,dBY,     dBX,    dBY+dBH, C.div)
+                    ln(wid..'_br', dBX+dBW,dBY, dBX+dBW,dBY+dBH, C.div)
+                    local disp=table.concat(w2.value,', '); if #disp==0 then disp='None' end
+                    txt(wid..'_val', dBX+6,dBY+3, disp, C.text, 11)
+                    txt(wid..'_arr', dBX+dBW-12,dBY+4, 'v', C.sub, 9)
+                    if click and hit(dBX,dBY,dBW,dBH) then
+                        UILib._dd={x=dBX,y=dBY+dBH,w=dBW,value=w2.value,choices=w2.choices,multi=w2.multi,
+                            cb=function(v) w2.value=v; if w2.cb then w2.cb(v) end end}
+                        click=false
                     end
 
-                -- ── DROPDOWN ────────────────────────────────────────────────
-                elseif wType == 'dropdown' then
-                    txt(wid..'_lbl', wX+10, wY+6, w2.label, C.text, 12)
+                elseif wType=='button' then
+                    txt(wid..'_lbl', wX+10,wY+8, w2.label, C.text, 13)
+                    if hasSub then txt(wid..'_sub', wX+10,wY+22, w2.sub, C.sub, 11)
+                    else hide(wid..'_sub') end
+                    txt(wid..'_arr', wX+wW-16,wY+(iH/2)-7, '>', C.sub, 12)
+                    if click and isHov then if w2.cb then w2.cb() end; click=false end
 
-                    local dBX, dBY = wX+10, wY+22
-                    local dBW, dBH = wW-20, 18
-
-                    rect(wid..'_box', dBX, dBY, dBW, dBH, C.srch)
-                    ln(wid..'_bt', dBX,     dBY,     dBX+dBW, dBY,     C.div)
-                    ln(wid..'_bb', dBX,     dBY+dBH, dBX+dBW, dBY+dBH, C.div)
-                    ln(wid..'_bl', dBX,     dBY,     dBX,     dBY+dBH, C.div)
-                    ln(wid..'_br', dBX+dBW, dBY,     dBX+dBW, dBY+dBH, C.div)
-
-                    local disp = table.concat(w2.value, ', ')
-                    if #disp == 0 then disp = 'None' end
-                    txt(wid..'_val', dBX+6,        dBY+3, disp, C.text, 11)
-                    txt(wid..'_arr', dBX+dBW-12,   dBY+4, 'v',  C.sub,  9)
-
-                    if click and hit(dBX, dBY, dBW, dBH) then
-                        UILib._dd = {
-                            x=dBX, y=dBY+dBH, w=dBW,
-                            value=w2.value, choices=w2.choices, multi=w2.multi,
-                            cb=function(v) w2.value=v; if w2.cb then w2.cb(v) end end,
-                        }
-                        click = false
-                    end
-
-                -- ── BUTTON ──────────────────────────────────────────────────
-                elseif wType == 'button' then
-                    txt(wid..'_lbl', wX+10, wY+8, w2.label, C.text, 13)
-                    if hasSub then
-                        txt(wid..'_sub', wX+10, wY+22, w2.sub, C.sub, 11)
-                    else
-                        hide(wid..'_sub')
-                    end
-                    txt(wid..'_arr', wX+wW-16, wY+(iH/2)-7, '>', C.sub, 12)
-                    if click and isHov then
-                        if w2.cb then w2.cb() end
-                        click = false
-                    end
-
-                -- ── TEXTBOX ─────────────────────────────────────────────────
-                elseif wType == 'textbox' then
-                    local isTyp = self._ctx == wid
-                    txt(wid..'_lbl', wX+10, wY+4, w2.label, C.sub, 10)
-
-                    local tBX, tBY = wX+10, wY+16
-                    local tBW, tBH = wW-20, 16
-                    local bColor   = isTyp and C.accent or C.div
-
-                    rect(wid..'_box', tBX, tBY, tBW, tBH, C.srch)
-                    ln(wid..'_bt', tBX,     tBY,     tBX+tBW, tBY,     bColor)
-                    ln(wid..'_bb', tBX,     tBY+tBH, tBX+tBW, tBY+tBH, bColor)
-                    ln(wid..'_bl', tBX,     tBY,     tBX,     tBY+tBH, bColor)
-                    ln(wid..'_br', tBX+tBW, tBY,     tBX+tBW, tBY+tBH, bColor)
-
-                    local cursor = isTyp and (math.floor(os.clock()*2) % 2 == 0 and '|' or ' ') or ''
-                    local disp
-                    if w2.value ~= '' then
-                        disp = w2.value .. cursor
-                    elseif isTyp then
-                        disp = cursor
-                    else
-                        disp = w2.label
-                    end
-                    txt(wid..'_val', tBX+4, tBY+3, disp, w2.value ~= '' and C.text or C.sub, 11)
-
+                elseif wType=='textbox' then
+                    local isTyp=self._ctx==wid
+                    txt(wid..'_lbl', wX+10,wY+4, w2.label, C.sub, 10)
+                    local tBX=wX+10; local tBY=wY+16; local tBW=wW-20; local tBH=16
+                    local bC=isTyp and C.accent or C.div
+                    rect(wid..'_box', tBX,tBY,tBW,tBH, C.srch)
+                    ln(wid..'_bt', tBX,tBY,     tBX+tBW,tBY,     bC)
+                    ln(wid..'_bb', tBX,tBY+tBH, tBX+tBW,tBY+tBH, bC)
+                    ln(wid..'_bl', tBX,tBY,     tBX,    tBY+tBH, bC)
+                    ln(wid..'_br', tBX+tBW,tBY, tBX+tBW,tBY+tBH, bC)
+                    local cursor=isTyp and (math.floor(os.clock()*2)%2==0 and '|' or ' ') or ''
+                    local disp=w2.value~='' and (w2.value..cursor) or (isTyp and cursor or w2.label)
+                    txt(wid..'_val', tBX+4,tBY+3, disp, w2.value~='' and C.text or C.sub, 11)
                     if click then
-                        if hit(tBX, tBY, tBW, tBH) then
-                            self._ctx = wid; click = false
-                        elseif isTyp then
-                            self._ctx = nil
-                        end
+                        if hit(tBX,tBY,tBW,tBH) then self._ctx=wid; click=false
+                        elseif isTyp then self._ctx=nil end
                     end
-
                     if isTyp then
-                        local cm = { space=' ', dash='-', period='.', comma=',', slash='/' }
-                        local sh = held('lshift') or held('rshift')
-                        local sm = { ['1']='!',['2']='@',['3']='#',['4']='$',['5']='%',['0']=')' }
+                        local cm={space=' ',dash='-',period='.',comma=',',slash='/'}
+                        local sh=held('lshift') or held('rshift')
+                        local sm={['1']='!',['2']='@',['3']='#',['4']='$',['5']='%',['0']=')'}
                         for ch in pairs(self._inputs) do
                             if pressed(ch) then
-                                local m = cm[ch] or ch
-                                if m == 'enter' or m == 'esc' then
-                                    self._ctx = nil
-                                elseif m == 'unbound' then
-                                    w2.value = w2.value:sub(1, -2)
-                                    if w2.cb then w2.cb(w2.value) end
-                                elseif #m == 1 then
-                                    if sh and sm[m] then m = sm[m] elseif sh then m = m:upper() end
-                                    w2.value = w2.value .. m
-                                    if w2.cb then w2.cb(w2.value) end
+                                local m=cm[ch] or ch
+                                if m=='enter' or m=='esc' then self._ctx=nil
+                                elseif m=='unbound' then w2.value=w2.value:sub(1,-2); if w2.cb then w2.cb(w2.value) end
+                                elseif #m==1 then
+                                    if sh and sm[m] then m=sm[m] elseif sh then m=m:upper() end
+                                    w2.value=w2.value..m; if w2.cb then w2.cb(w2.value) end
                                 end
                             end
                         end
                     end
 
-                -- ── COLORPICKER (standalone) ─────────────────────────────────
-                elseif wType == 'colorpicker' then
-                    txt(wid..'_lbl', wX+10, wY+8, w2.label, C.text, 12)
-                    local csz = 20
-                    local cx2 = wX + wW - csz - 8
-                    local cy2 = wY + 7
-                    sq(wid..'_sw',   cx2,     cy2,     csz, csz, w2.value)
-                    ln(wid..'_sb_t', cx2,     cy2,     cx2+csz, cy2,     C.div)
-                    ln(wid..'_sb_b', cx2,     cy2+csz, cx2+csz, cy2+csz, C.div)
-                    ln(wid..'_sb_l', cx2,     cy2,     cx2,     cy2+csz, C.div)
-                    ln(wid..'_sb_r', cx2+csz, cy2,     cx2+csz, cy2+csz, C.div)
-                    if click and hit(cx2, cy2, csz, csz) then
-                        local h2, s2, v2 = rgbToHsv(w2.value.R, w2.value.G, w2.value.B)
-                        local ppx = cX + cW + 4
-                        if ppx + 200 > screen().X then ppx = cX - 204 end
-                        UILib._cp = {
-                            x=ppx, y=cY, label=w2.label,
+                elseif wType=='colorpicker' then
+                    txt(wid..'_lbl', wX+10,wY+8, w2.label, C.text, 12)
+                    local csz=20; local cx2=wX+wW-csz-8; local cy2=wY+7
+                    sq(wid..'_sw',   cx2,cy2,csz,csz, w2.value)
+                    ln(wid..'_sb_t', cx2,cy2,     cx2+csz,cy2,     C.div)
+                    ln(wid..'_sb_b', cx2,cy2+csz, cx2+csz,cy2+csz, C.div)
+                    ln(wid..'_sb_l', cx2,cy2,     cx2,    cy2+csz, C.div)
+                    ln(wid..'_sb_r', cx2+csz,cy2, cx2+csz,cy2+csz, C.div)
+                    if click and hit(cx2,cy2,csz,csz) then
+                        local h2,s2,v2=rgbToHsv(w2.value.R,w2.value.G,w2.value.B)
+                        local ppx=cX+cW+4; if ppx+200>screen().X then ppx=cX-204 end
+                        UILib._cp={x=ppx,y=cY,label=w2.label,
                             cb=function(c) w2.value=c; if w2.cb then w2.cb(c) end end,
-                            h=h2, s=s2, v=v2,
-                        }
-                        click = false
+                            h=h2,s=s2,v=v2}
+                        click=false
                     end
                 end
 
-                contentMaxY = wY + iH
-                wY = wY + iH + 4
+                contentMaxY=wY+iH
+                wY=wY+iH+4
 
                 ::continue_widget::
             end
-            wY = wY + 8
-
+            wY=wY+8
             ::continue_sec::
         end
 
-        -- FIX: clamp scroll using actual content bottom, not a stale local
-        local maxScroll = math.max(0, contentMaxY - (cY + cH) + 20 + math.floor(self._scroll))
-        self._scrollT   = clamp(self._scrollT, 0, maxScroll)
+        local maxScroll=math.max(0, contentMaxY-(cY+cH)+20+math.floor(self._scroll))
+        self._scrollT=clamp(self._scrollT,0,maxScroll)
     end
 
-    -- ── POPUPS (drawn on top of widgets) ────────────────────────────────────
-    click = drawDropdown(click)
-    click = drawColorpicker(heldM, click)
+    click=drawDropdown(click)
+    click=drawColorpicker(heldM,click)
 
-    -- ── SIDEBAR REPAINT (drawn last = highest z-order) ───────────────────────
-    -- Roblox Drawing has no z-index, so we redraw the sidebar AFTER widgets.
-    rect('m_sb2',  sbX, sbY, sw, sbH, C.side)
-    ln('m_sdiv2',  sbX+sw, sbY, sbX+sw, sbY+sbH, C.div)
-
-    -- Search
-    rect('m_sr2',  srX, srY, srW, srH, C.srch)
-    txt('m_sr_t3', srX+6, srY+7, srDisp, self._search == '' and C.sub or C.text, 12)
-
-    -- Nav
-    local navY2 = srY + srH + 6
-    for _, tname in ipairs(self._tab_order) do
-        local isOpen = self._open_tab == tname
-        rect('nav2_'..tname..'_bg',  sbX+pad, navY2, sw-pad*2, 28, isOpen and C.navhi or C.side)
-        if isOpen then
-            sq('nav2_'..tname..'_bar', sbX+pad, navY2+4, 3, 20, C.accent)
-        else
-            hide('nav2_'..tname..'_bar')
-        end
-        txt('nav2_'..tname..'_t', sbX+pad+10, navY2+8, tname, isOpen and C.text or C.sub, 12)
-        navY2 = navY2 + 28 + 3
+    -- sidebar repaint (drawn last = on top of widgets)
+    rect('m_sb2',  sbX,sbY,sw,sbH, C.side)
+    ln('m_sdiv2',  sbX+sw,sbY, sbX+sw,sbY+sbH, C.div)
+    rect('m_sr2',  srX,srY,srW,srH, C.srch)
+    txt('m_sr_t3', srX+6,srY+7, srDisp, self._search=='' and C.sub or C.text, 12)
+    local navY2=srY+srH+6
+    for _,tname in ipairs(self._tab_order) do
+        local isOpen=self._open_tab==tname
+        rect('nav2_'..tname..'_bg', sbX+pad,navY2, sw-pad*2,28, isOpen and C.navhi or C.side)
+        if isOpen then sq('nav2_'..tname..'_bar', sbX+pad,navY2+4,3,20, C.accent)
+        else hide('nav2_'..tname..'_bar') end
+        txt('nav2_'..tname..'_t', sbX+pad+10,navY2+8, tname, isOpen and C.text or C.sub, 12)
+        navY2=navY2+28+3
     end
-
-    -- Profile footer repaint
-    rect('m_pfbg2',  sbX,        pfY,    sw,  38,  C.side)
-    sq('m_pfav2',    sbX+pad,    pfY+7,  24,  24,  C.accdim)
-    txt('m_pfav_l2', sbX+pad+12, pfY+13, (self.username or 'P'):sub(1,1):upper(), C.accent, 11, true)
-    txt('m_pfname2', sbX+pad+28, pfY+8,  self.username or '', C.text, 11)
-    txt('m_pfsub2',  sbX+pad+28, pfY+20, self.usertext or '', C.sub, 10)
-
-    -- Content header repaint (covers widget overflow at top)
-    rect('m_chbg2', cX, cY, cW, chH, C.content)
-    txt('m_chtxt2',  cX+pad+4,   cY+10, self._open_tab or '', C.text, 14)
-    ln('m_chdiv2',   cX+6, cY+chH, cX+cW-6, cY+chH, C.div)
-
-    -- Bottom edge cover (hides widget bleed at bottom)
-    rect('m_bot', cX, cY+cH-2, cW, 4, C.bg)
+    rect('m_pfbg2',  sbX,pfY,sw,38, C.side)
+    sq('m_pfav2',    sbX+pad,pfY+7,24,24, C.accdim)
+    txt('m_pfav_l2', sbX+pad+12,pfY+13, (self.username or 'P'):sub(1,1):upper(), C.accent, 11, true)
+    txt('m_pfname2', sbX+pad+28,pfY+8,  self.username or '', C.text, 11)
+    txt('m_pfsub2',  sbX+pad+28,pfY+20, self.usertext or '',  C.sub,  10)
+    rect('m_chbg2', cX,cY,cW,chH, C.content)
+    txt('m_chtxt2',  cX+pad+4,cY+10, self._open_tab or '', C.text, 14)
+    ln('m_chdiv2',   cX+6,cY+chH, cX+cW-6,cY+chH, C.div)
+    rect('m_bot', cX,cY+cH-2,cW,4, C.bg)
 end
+
+-- expose via _G again at end just to be safe
+_G.UILib = UILib
 
 return UILib
