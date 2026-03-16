@@ -81,7 +81,7 @@ local function draw(id, dtype, col, zi, ...)
         local pos,sz,filled = ...
         o.Position=pos; o.Size=sz; o.Filled=filled
     elseif dtype == 'text' then
-        if not o then D[id]=Drawing.new('Text'); o=D[id] end
+        if not o then D[id]=Drawing.new('Text'); o=D[id]; o.Text='' end
         local pos,text,outline,center,sz,font = ...
         o.Position=pos; o.Text=tostring(text or '')
         o.Outline=outline or false; o.Center=center or false
