@@ -10,7 +10,6 @@ UILib = {
     _tab_order   = {},
     _menu_open   = true,
     _menu_toggled_at = 0,
-    _menu_open_at = 0,
     _open_tab    = nil,
     _tab_change_at = 0,
     _notifications = {},
@@ -271,7 +270,7 @@ function UILib:Step()
     local clickFrame = isPressed('m1')
     local mouseHeld  = isHeld('m1')
 
-    if isPressed(self._menu_key) and (os.clock() - self._menu_open_at) > 2 then
+    if isPressed(self._menu_key) then
         self._menu_open = not self._menu_open
         self._menu_toggled_at = os.clock()
     end
@@ -670,11 +669,8 @@ function UILib:Step()
             self._active_colorpicker=nil; undrawPrefix('cp_'); clickFrame=false
         end
     else undrawPrefix('cp_') end
-
-    -- menu fade removed (was causing flicker on open/close)
 end
 
-UILib._menu_open_at = os.clock()
 UILib._scroll  = 0
 UILib._scrollT = 0
 UILib._sb_drag = false
