@@ -382,7 +382,7 @@ function UILib:Step()
     self._scroll = lerp(self._scroll, self._scrollT, 0.25)
 
     -- SCROLLBAR
-    local sbW2=5; local sbX2=cX+cW-sbW2-4; local sbY2=cY+chH+6; local sbH2=cH-chH-14
+    local sbW2=8; local sbX2=cX+cW-sbW2-4; local sbY2=cY+chH+6; local sbH2=cH-chH-14
 
     -- WIDGETS
     local tabData=self._open_tab and self._tree[self._open_tab]
@@ -571,7 +571,6 @@ function UILib:Step()
     if maxScroll > 0 then
         -- track
         draw('m_sbt','rect',C.trkoff,20,Vector2.new(sbX2,sbY2),Vector2.new(sbW2,sbH2),true)
-        roundedCorners('m_sbt', sbX2, sbY2, sbW2, sbH2, 2, C.content, 21)
         -- thumb: height proportional to how much content is visible
         local visRatio = (cH-chH-pad*2) / ((cH-chH-pad*2) + maxScroll)
         local thumbH = math.max(20, math.floor(sbH2 * visRatio))
@@ -579,10 +578,9 @@ function UILib:Step()
         local travelH = math.max(0, sbH2 - thumbH)
         local thumbY = sbY2 + math.floor(travelH * thumbPct)
         thumbY = clamp(thumbY, sbY2, sbY2 + travelH)
-        local isHovSB = inBounds(Vector2.new(sbX2-3,sbY2),Vector2.new(sbW2+6,sbH2))
+        local isHovSB = inBounds(Vector2.new(sbX2-4,sbY2),Vector2.new(sbW2+8,sbH2))
         local thumbCol = (isHovSB or self._sb_drag) and C.accent or C.sub
         draw('m_sbthm','rect',thumbCol,21,Vector2.new(sbX2,thumbY),Vector2.new(sbW2,thumbH),true)
-        roundedCorners('m_sbthm', sbX2, thumbY, sbW2, thumbH, 3, C.content, 22)
         -- drag
         if mouseHeld then
             if clickFrame and isHovSB then self._sb_drag=true; clickFrame=false end
