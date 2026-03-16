@@ -107,6 +107,7 @@ local function undrawPrefix(p)
 end
 
 local function removePrefix(p)
+    if p=='' then return end
     local keys={}
     for k in pairs(D) do if k:sub(1,#p)==p then keys[#keys+1]=k end end
     for _,k in ipairs(keys) do
@@ -303,7 +304,7 @@ function UILib:Step()
             local nx=20; local ny=20+(_nslot-1)*(nH+4)
             draw('notif_'..n._id..'_bg','rect',C.card,50,Vector2.new(nx,ny),Vector2.new(nW,nH),true)
             draw('notif_'..n._id..'_t', 'text',C.text,51,Vector2.new(nx+8,ny+6),n.text,false,false,12)
-            draw('notif_'..n._id..'_p', 'rect',C.accent,52,Vector2.new(nx+2,ny+nH-3),Vector2.new((nW-4)*clamp(el/n.time,0,1),2),true)
+            draw('notif_'..n._id..'_p', 'rect',C.accent,52,Vector2.new(nx+2,ny+nH-3),Vector2.new((nW-4)*clamp(n.time>0 and el/n.time or 1,0,1),2),true)
             setAlpha('notif_'..n._id..'_bg',1-fade)
             setAlpha('notif_'..n._id..'_t', 1-fade)
             setAlpha('notif_'..n._id..'_p', 1-fade)
@@ -314,17 +315,25 @@ function UILib:Step()
     if not self._menu_open then
         undrawPrefix('m_'); undrawPrefix('nav_'); undrawPrefix('s_')
         undraw('sb_trk'); undraw('sb_thm')
+        undrawPrefix('dd_'); undrawPrefix('cp_')
+        self._active_dropdown=nil; self._active_colorpicker=nil
         return
     end
 
     -- DRAG
     if mouseHeld and self._menu_drag then
-        local mp=getMouse(); self.x=mp.X-self._menu_drag.X; self.y=mp.Y-self._menu_drag.Y
+        local mp=getMouse()
+        self.x=mp.X-self._menu_drag.X
+        self.y=mp.Y-self._menu_drag.Y
+        -- clamp so titlebar stays on screen
+        local ss2=getScreenSize()
+        self.x=clamp(self.x, -self.w+60, ss2.X-60)
+        self.y=clamp(self.y, 0, ss2.Y-32)
     elseif not mouseHeld then
         self._menu_drag=nil
     end
 
-    local x,y,w,h=self.x,self.y,self.w,self.h
+    local x,y,w,h=math.floor(self.x),math.floor(self.y),math.floor(self.w),math.floor(self.h)
     local sw,pad=self._sw,self._padding
     local tbH=32
 
@@ -353,7 +362,7 @@ function UILib:Step()
     end
 
     -- SIDEBAR
-    local sbX,sbY,sbH=x,y+tbH,h-tbH
+    local sbX,sbY,sbH=x,y+tbH,math.max(1,h-tbH)
     draw('m_sb',  'rect',C.side,2,Vector2.new(sbX,sbY),    Vector2.new(sw,sbH),true)
     draw('m_sdiv','line',C.div, 3,Vector2.new(sbX+sw,sbY), Vector2.new(sbX+sw,sbY+sbH),1)
 
@@ -362,15 +371,16 @@ function UILib:Step()
     for _,tname in ipairs(self._tab_order) do
         local isOpen=self._open_tab==tname
         local navCol = isOpen and C.navhi or C.side
-        draw('nav_'..tname..'_bg','rect',navCol,4,Vector2.new(sbX+pad,navY),Vector2.new(sw-pad*2,28),true)
+        local navW=math.max(1,sw-pad*2)
+        draw('nav_'..tname..'_bg','rect',navCol,4,Vector2.new(sbX+pad,navY),Vector2.new(navW,28),true)
         if isOpen then
-            draw('nav_'..tname..'_bdr','rect',C.div,4,Vector2.new(sbX+pad,navY),Vector2.new(sw-pad*2,28),false)
+            draw('nav_'..tname..'_bdr','rect',C.div,4,Vector2.new(sbX+pad,navY),Vector2.new(navW,28),false)
         else undraw('nav_'..tname..'_bdr') end
-        roundedCorners('nav_'..tname..'_bg', sbX+pad, navY, sw-pad*2, 28, 8, C.side, 6)
+        roundedCorners('nav_'..tname..'_bg', sbX+pad, navY, navW, 28, 8, C.side, 6)
         if isOpen then draw('nav_'..tname..'_bar','rect',C.accent,5,Vector2.new(sbX+pad,navY+4),Vector2.new(3,20),true)
         else undraw('nav_'..tname..'_bar') end
         draw('nav_'..tname..'_t','text',isOpen and C.text or C.sub,5,Vector2.new(sbX+pad+10,navY+8),tname,false,false,12)
-        if clickFrame and inBounds(Vector2.new(sbX+pad,navY),Vector2.new(sw-pad*2,28)) and not isOpen then
+        if clickFrame and inBounds(Vector2.new(sbX+pad,navY),Vector2.new(navW,28)) and not isOpen then
             self._open_tab=tname; self._tab_change_at=os.clock()
             self._scroll=0; self._scrollT=0
             self._input_ctx=nil
@@ -406,7 +416,7 @@ function UILib:Step()
     if math.abs(self._scroll - self._scrollT) < 0.5 then self._scroll = self._scrollT end
 
     -- scrollbar constants
-    local sbW2=8; local sbX2=cX+cW-sbW2-4; local sbY2=cY+chH+6; local sbH2=cH-chH-14
+    local sbW2=8; local sbX2=cX+cW-sbW2-4; local sbY2=cY+chH+6; local sbH2=math.max(0,cH-chH-14)
 
     -- WIDGETS
     local tabData=self._open_tab and self._tree[self._open_tab]
@@ -597,7 +607,8 @@ function UILib:Step()
     -- SCROLLBAR
     if maxScroll > 0 then
         draw('sb_trk','rect',C.trkoff,20,Vector2.new(sbX2,sbY2),Vector2.new(sbW2,sbH2),true)
-        local visRatio = (cH-chH-pad*2) / ((cH-chH-pad*2) + maxScroll)
+        local _visH=math.max(1,cH-chH-pad*2)
+        local visRatio = _visH / (_visH + maxScroll)
         local thumbH = math.max(20, math.floor(sbH2 * visRatio))
         local travelH = math.max(0, sbH2 - thumbH)
         local thumbPct = clamp(math.floor(self._scroll)/math.max(1,maxScroll), 0, 1)
