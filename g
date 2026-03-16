@@ -53,16 +53,6 @@ UILib = {
     },
 }
 
-    local UIS = game:GetService("UserInputService")
-
-    UIS.InputChanged:Connect(function(input, processed)
-    if processed then return end
-
-    if input.UserInputType == Enum.UserInputType.MouseWheel then
-        UILib._scroll_delta = input.Position.Z
-    end
-end)
-
 -- ─── UTILS ───────────────────────────────────────────────────────────────────
 
 local function clamp(x,a,b) return x<a and a or x>b and b or x end
