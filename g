@@ -1,43 +1,77 @@
 --[[
     library.lua — matcha edition
-    Minimal, direct Drawing API usage. No abstractions that can silently fail.
+    Drawing API based UI. Input system mirrors catowice/p library.lua exactly.
 ]]
-
-local UIS = game:GetService('UserInputService')
 
 UILib = {
     _drawings = {},
     _tree     = {},
     _tab_order= {},
     _open_tab = nil,
-    _menu_open= true,   -- START OPEN
-    _menu_key = nil,    -- set after load
-    -- UIS state
-    _keys     = {},     -- [KeyCode] = {h=bool, c=bool}
-    _m1h      = false, _m1c = false,
-    _m2h      = false, _m2c = false,
-    _drag     = nil,
-    _ctx      = nil,
-    _search   = '',
-    _scroll   = 0,
-    _scrollT  = 0,
+    _menu_open= true,
+    _menu_key = 'f1',
+    _inputs   = {
+        ['m1']={id=0x01,held=false,click=false},['m2']={id=0x02,held=false,click=false},
+        ['unbound']={id=0x08,held=false,click=false},['tab']={id=0x09,held=false,click=false},
+        ['enter']={id=0x0D,held=false,click=false},['shift']={id=0x10,held=false,click=false},
+        ['ctrl']={id=0x11,held=false,click=false},['esc']={id=0x1B,held=false,click=false},
+        ['space']={id=0x20,held=false,click=false},['left']={id=0x25,held=false,click=false},
+        ['up']={id=0x26,held=false,click=false},['right']={id=0x27,held=false,click=false},
+        ['down']={id=0x28,held=false,click=false},
+        ['0']={id=0x30,held=false,click=false},['1']={id=0x31,held=false,click=false},
+        ['2']={id=0x32,held=false,click=false},['3']={id=0x33,held=false,click=false},
+        ['4']={id=0x34,held=false,click=false},['5']={id=0x35,held=false,click=false},
+        ['6']={id=0x36,held=false,click=false},['7']={id=0x37,held=false,click=false},
+        ['8']={id=0x38,held=false,click=false},['9']={id=0x39,held=false,click=false},
+        ['a']={id=0x41,held=false,click=false},['b']={id=0x42,held=false,click=false},
+        ['c']={id=0x43,held=false,click=false},['d']={id=0x44,held=false,click=false},
+        ['e']={id=0x45,held=false,click=false},['f']={id=0x46,held=false,click=false},
+        ['g']={id=0x47,held=false,click=false},['h']={id=0x48,held=false,click=false},
+        ['i']={id=0x49,held=false,click=false},['j']={id=0x4A,held=false,click=false},
+        ['k']={id=0x4B,held=false,click=false},['l']={id=0x4C,held=false,click=false},
+        ['m']={id=0x4D,held=false,click=false},['n']={id=0x4E,held=false,click=false},
+        ['o']={id=0x4F,held=false,click=false},['p']={id=0x50,held=false,click=false},
+        ['q']={id=0x51,held=false,click=false},['r']={id=0x52,held=false,click=false},
+        ['s']={id=0x53,held=false,click=false},['t']={id=0x54,held=false,click=false},
+        ['u']={id=0x55,held=false,click=false},['v']={id=0x56,held=false,click=false},
+        ['w']={id=0x57,held=false,click=false},['x']={id=0x58,held=false,click=false},
+        ['y']={id=0x59,held=false,click=false},['z']={id=0x5A,held=false,click=false},
+        ['f1']={id=0x70,held=false,click=false},['f2']={id=0x71,held=false,click=false},
+        ['f3']={id=0x72,held=false,click=false},['f4']={id=0x73,held=false,click=false},
+        ['f5']={id=0x74,held=false,click=false},['f6']={id=0x75,held=false,click=false},
+        ['f7']={id=0x76,held=false,click=false},['f8']={id=0x77,held=false,click=false},
+        ['f9']={id=0x78,held=false,click=false},['f10']={id=0x79,held=false,click=false},
+        ['f11']={id=0x7A,held=false,click=false},['f12']={id=0x7B,held=false,click=false},
+        ['lshift']={id=0xA0,held=false,click=false},['rshift']={id=0xA1,held=false,click=false},
+        ['lctrl']={id=0xA2,held=false,click=false},['rctrl']={id=0xA3,held=false,click=false},
+        ['semicolon']={id=0xBA,held=false,click=false},['plus']={id=0xBB,held=false,click=false},
+        ['comma']={id=0xBC,held=false,click=false},['minus']={id=0xBD,held=false,click=false},
+        ['period']={id=0xBE,held=false,click=false},['slash']={id=0xBF,held=false,click=false},
+        ['lbracket']={id=0xDB,held=false,click=false},['backslash']={id=0xDC,held=false,click=false},
+        ['rbracket']={id=0xDD,held=false,click=false},['quote']={id=0xDE,held=false,click=false},
+    },
+    _drag        = nil,
+    _ctx         = nil,
+    _ctx_widget  = nil,
+    _search      = '',
+    _scroll      = 0,
+    _scrollT     = 0,
     _slider_drag = nil,
-    _dd       = nil,
-    _cp       = nil,
-    _copied_color = nil,
-    _notifs   = {},
-    _notif_id = 0,
+    _dd          = nil,
+    _cp          = nil,
+    _copied_color= nil,
+    _notifs      = {},
+    _notif_id    = 0,
     -- layout
     title    = 'matcha',
     subtitle = '',
     username = 'Player',
     usertext = '',
     x = 100, y = 80, w = 580, h = 420,
-    _sw = 145,
-    _pad = 10,
-    _corner = 6,
+    _sw   = 145,
+    _pad  = 10,
     _font = Drawing.Fonts.System,
-    _fsize = 13,
+    _fsize= 13,
     -- theme
     C = {
         bg      = Color3.fromRGB(18,18,20),
@@ -58,29 +92,34 @@ UILib = {
     },
 }
 
-UILib._menu_key = Enum.KeyCode.F1
 _G.UILib = UILib
 
 -- ─── UTILS ───────────────────────────────────────────────────────────────────
 
 local function clamp(v,a,b) return v<a and a or v>b and b or v end
-local function lerp(a,b,t) return a+(b-a)*t end
+local function lerp(a,b,t)  return a+(b-a)*t end
 
 local function hsvToRgb(h,s,v)
-    local r,g,b
-    local i=math.floor(h*6); local f=h*6-i; local p=v*(1-s); local q=v*(1-f*s); local t2=v*(1-(1-f)*s)
+    local i=math.floor(h*6); local f=h*6-i
+    local p=v*(1-s); local q=v*(1-f*s); local t2=v*(1-(1-f)*s)
     i=i%6
-    if i==0 then r,g,b=v,t2,p elseif i==1 then r,g,b=q,v,p elseif i==2 then r,g,b=p,v,t2
-    elseif i==3 then r,g,b=p,q,v elseif i==4 then r,g,b=t2,p,v else r,g,b=v,p,q end
+    local r,g,b
+    if     i==0 then r,g,b=v,t2,p
+    elseif i==1 then r,g,b=q,v,p
+    elseif i==2 then r,g,b=p,v,t2
+    elseif i==3 then r,g,b=p,q,v
+    elseif i==4 then r,g,b=t2,p,v
+    else             r,g,b=v,p,q end
     return Color3.new(r,g,b)
 end
 
 local function rgbToHsv(r,g,b)
     local max=math.max(r,g,b); local min=math.min(r,g,b); local d=max-min
-    local h,s,v=0,max>0 and d/max or 0,max
+    local h,s,v=0, max>0 and d/max or 0, max
     if d~=0 then
-        if max==r then h=(g-b)/d+(g<b and 6 or 0)
-        elseif max==g then h=(b-r)/d+2 else h=(r-g)/d+4 end
+        if     max==r then h=(g-b)/d+(g<b and 6 or 0)
+        elseif max==g then h=(b-r)/d+2
+        else               h=(r-g)/d+4 end
         h=h/6
     end
     return h,s,v
@@ -88,9 +127,9 @@ end
 
 -- ─── RAW DRAWING ─────────────────────────────────────────────────────────────
 
-local D = {}
+local D={}
 
-local function sq(id, x, y, w, h, col, tr)
+local function sq(id,x,y,w,h,col,tr)
     if w<=0 or h<=0 then return end
     if not D[id] then D[id]=Drawing.new('Square') end
     local o=D[id]
@@ -98,7 +137,7 @@ local function sq(id, x, y, w, h, col, tr)
     o.Color=col; o.Filled=true; o.Transparency=tr or 0; o.Visible=true
 end
 
-local function txt(id, x, y, text, col, size, center, outline, tr)
+local function txt(id,x,y,text,col,size,center,outline,tr)
     if not D[id] then D[id]=Drawing.new('Text') end
     local o=D[id]
     o.Position=Vector2.new(x,y); o.Text=tostring(text or '')
@@ -107,36 +146,28 @@ local function txt(id, x, y, text, col, size, center, outline, tr)
     o.Transparency=tr or 0; o.Visible=true
 end
 
-local function ln(id, x1, y1, x2, y2, col, tr)
+local function ln(id,x1,y1,x2,y2,col,tr)
     if not D[id] then D[id]=Drawing.new('Line') end
     local o=D[id]
     o.From=Vector2.new(x1,y1); o.To=Vector2.new(x2,y2)
     o.Color=col; o.Thickness=1; o.Transparency=tr or 0; o.Visible=true
 end
 
-local function hide(id)
-    if D[id] then D[id].Visible=false end
-end
+local function hide(id)   if D[id] then D[id].Visible=false end end
 
 local function hidePrefix(p)
-    for k,o in pairs(D) do
-        if k:sub(1,#p)==p then o.Visible=false end
-    end
+    for k,o in pairs(D) do if k:sub(1,#p)==p then o.Visible=false end end
 end
 
 local function removePfx(p)
-    for k,o in pairs(D) do
-        if k:sub(1,#p)==p then o:Remove(); D[k]=nil end
-    end
+    for k,o in pairs(D) do if k:sub(1,#p)==p then o:Remove(); D[k]=nil end end
 end
 
-local function rect(id, x, y, w, h, col, tr)
-    sq(id, x, y, w, h, col, tr)
-end
+local rect = sq
 
-local function tbounds(text, size)
-    size = size or UILib._fsize
-    return Vector2.new(#tostring(text or '') * size * 0.52, size)
+local function tbounds(text,size)
+    size=size or UILib._fsize
+    return Vector2.new(#tostring(text or '')*size*0.52, size)
 end
 
 local function mouse()
@@ -155,108 +186,38 @@ local function hit(x,y,w,h)
     local mp=mouse(); return mp.X>=x and mp.X<=x+w and mp.Y>=y and mp.Y<=y+h
 end
 
--- ─── INPUT via UIS ───────────────────────────────────────────────────────────
+-- ─── INPUT (mirrors catowice reference exactly) ───────────────────────────────
 
--- Track key states via UIS events (works regardless of setrobloxinput)
-local _keyHeld = {}
-local _keyPressed = {}
-local _prevKeyHeld = {}
-
-local _connBegan = UIS.InputBegan:Connect(function(inp, gp)
-    if inp.UserInputType == Enum.UserInputType.Keyboard then
-        local kc = inp.KeyCode
-        if not _keyHeld[kc] then
-            _keyPressed[kc] = true
-        end
-        _keyHeld[kc] = true
-    elseif inp.UserInputType == Enum.UserInputType.MouseButton1 then
-        if not UILib._m1h then UILib._m1c = true end
-        UILib._m1h = true
-    elseif inp.UserInputType == Enum.UserInputType.MouseButton2 then
-        if not UILib._m2h then UILib._m2c = true end
-        UILib._m2h = true
-    end
-end)
-
-local _connEnded = UIS.InputEnded:Connect(function(inp, gp)
-    if inp.UserInputType == Enum.UserInputType.Keyboard then
-        _keyHeld[inp.KeyCode] = false
-    elseif inp.UserInputType == Enum.UserInputType.MouseButton1 then
-        UILib._m1h = false
-    elseif inp.UserInputType == Enum.UserInputType.MouseButton2 then
-        UILib._m2h = false
-    end
-end)
-
--- Text input via UIS
-local _connText = UIS.InputBegan:Connect(function(inp, gp)
-    if inp.UserInputType ~= Enum.UserInputType.Keyboard then return end
-    if not UILib._ctx then return end
-
-    local kc = inp.KeyCode
-    local shift = _keyHeld[Enum.KeyCode.LeftShift] or _keyHeld[Enum.KeyCode.RightShift]
-
-    if kc == Enum.KeyCode.Return or kc == Enum.KeyCode.Escape then
-        UILib._ctx = nil
-        return
-    end
-    if kc == Enum.KeyCode.Backspace then
-        if UILib._ctx == 'search' then
-            UILib._search = UILib._search:sub(1,-2)
+local function pollInput()
+    for keycode, data in pairs(UILib._inputs) do
+        local id   = data.id
+        local down = isrbxactive() and iskeypressed(id)
+        if down then
+            UILib._inputs[keycode].click = (data.held == false)
+            UILib._inputs[keycode].held  = true
         else
-            local w2 = UILib._ctx_widget
-            if w2 then w2.value = w2.value:sub(1,-2); if w2.cb then w2.cb(w2.value) end end
-        end
-        return
-    end
-
-    -- Convert keycode to character
-    local name = kc.Name
-    local ch = nil
-    if #name == 1 then
-        ch = shift and name:upper() or name:lower()
-    elseif name == 'Space' then ch = ' '
-    elseif name == 'Minus' then ch = shift and '_' or '-'
-    elseif name == 'Period' then ch = shift and '>' or '.'
-    elseif name == 'Comma' then ch = shift and '<' or ','
-    elseif name == 'Slash' then ch = shift and '?' or '/'
-    elseif name == 'Semicolon' then ch = shift and ':' or ';'
-    elseif name == 'Quote' then ch = shift and '"' or "'"
-    elseif name == 'LeftBracket' then ch = shift and '{' or '['
-    elseif name == 'RightBracket' then ch = shift and '}' or ']'
-    elseif name == 'Backslash' then ch = shift and '|' or '\\'
-    elseif name:match('^%d$') then
-        local nums = {['0']=')',['1']='!',['2']='@',['3']='#',['4']='$',['5']='%',['6']='^',['7']='&',['8']='*',['9']='('}
-        ch = shift and nums[name] or name
-    end
-
-    if ch then
-        if UILib._ctx == 'search' then
-            UILib._search = UILib._search .. ch
-        else
-            local w2 = UILib._ctx_widget
-            if w2 then w2.value = w2.value .. ch; if w2.cb then w2.cb(w2.value) end end
+            UILib._inputs[keycode].click = false
+            UILib._inputs[keycode].held  = false
         end
     end
-end)
-
-local function kPressed(kc)
-    if kc == nil then return false end
-    local v = _keyPressed[kc]
-    if v then _keyPressed[kc] = false end
-    return v == true
 end
-local function kHeld(kc)
-    if kc == nil then return false end
-    return _keyHeld[kc] == true
+
+local function kPressed(name)
+    local d = UILib._inputs[name]
+    return d and d.click or false
+end
+
+local function kHeld(name)
+    local d = UILib._inputs[name]
+    return d and d.held or false
 end
 
 -- ─── PUBLIC API ──────────────────────────────────────────────────────────────
 
-function UILib:SetMenuSize(s)   self.w=s.x or self.w; self.h=s.y or self.h end
-function UILib:GetMenuSize()    return Vector2.new(self.w,self.h) end
+function UILib:SetMenuSize(s)    self.w=s.x or self.w; self.h=s.y or self.h end
+function UILib:GetMenuSize()     return Vector2.new(self.w,self.h) end
 function UILib:SetMenuTitle(t,s) self.title=t; self.subtitle=s or '' end
-function UILib:SetProfile(u,s)  self.username=u; self.usertext=s or '' end
+function UILib:SetProfile(u,s)   self.username=u; self.usertext=s or '' end
 
 function UILib:CenterMenu()
     local ss=screen()
@@ -271,20 +232,15 @@ end
 
 function UILib:UpdateFont(f)
     self._font=f
-    for _,o in pairs(D) do
-        if o.Font~=nil then pcall(function() o.Font=f end) end
-    end
+    for _,o in pairs(D) do pcall(function() if o.Font~=nil then o.Font=f end end) end
 end
 
 function UILib:Unload()
-    pcall(function() _connBegan:Disconnect() end)
-    pcall(function() _connEnded:Disconnect() end)
-    pcall(function() _connText:Disconnect() end)
     removePfx('')
     pcall(setrobloxinput,true)
 end
 
--- ─── TAB / SECTION / WIDGET BUILDER ─────────────────────────────────────────
+-- ─── TAB / SECTION / WIDGET BUILDER ──────────────────────────────────────────
 
 function UILib:Tab(name)
     self._tree[name]={_sec_order={},_items={}}
@@ -301,11 +257,11 @@ function UILib:_Section(tab,sname)
         table.insert(self._tree[tab]._sec_order,sname)
     end
     local sec=self._tree[tab]._items[sname]
-    local function addWidget(w) table.insert(sec._widgets,w); return #sec._widgets end
+    local function add(w) table.insert(sec._widgets,w); return #sec._widgets end
     return {
         Toggle=function(_,label,sub,val,cb,unsafe)
-            local id=addWidget({type='toggle',label=label,sub=sub or '',value=val,cb=cb,unsafe=unsafe})
-            local r={
+            local id=add({type='toggle',label=label,sub=sub or '',value=val,cb=cb,unsafe=unsafe})
+            return {
                 Set=function(_,v) sec._widgets[id].value=v; if cb then cb(v) end end,
                 AddColorpicker=function(_,lbl,val2,ow,cb2)
                     sec._widgets[id].cp={label=lbl,value=val2 or Color3.new(1,1,1),ow=ow,cb=cb2}
@@ -313,33 +269,36 @@ function UILib:_Section(tab,sname)
                 end,
                 AddKeybind=function(_,kval,mode,canChange,kcb)
                     sec._widgets[id].kb={value=kval,mode=mode or 'Toggle',canChange=canChange~=false,cb=kcb,listening=false,at=0}
-                    return {Set=function(_,v,m) local kb=sec._widgets[id].kb; kb.value=v; kb.mode=m or kb.mode; if kcb then kcb(v,kb.mode) end end}
+                    return {Set=function(_,v,m)
+                        local kb=sec._widgets[id].kb
+                        kb.value=v; kb.mode=m or kb.mode
+                        if kcb then kcb(v,kb.mode) end
+                    end}
                 end,
             }
-            return r
         end,
         Slider=function(_,label,val,step,min,max,suffix,cb)
-            local id=addWidget({type='slider',label=label,value=val,step=step,min=min,max=max,suffix=suffix or '',cb=cb})
+            local id=add({type='slider',label=label,value=val,step=step,min=min,max=max,suffix=suffix or '',cb=cb})
             return {Set=function(_,v) sec._widgets[id].value=v; if cb then cb(v) end end}
         end,
         Dropdown=function(_,label,val,choices,multi,cb)
             if type(val)=='string' then val={val} end
-            local id=addWidget({type='dropdown',label=label,value=val,choices=choices,multi=multi,cb=cb})
+            local id=add({type='dropdown',label=label,value=val,choices=choices,multi=multi,cb=cb})
             return {
                 Set=function(_,v) sec._widgets[id].value=v; if cb then cb(v) end end,
-                UpdateChoices=function(_,c) sec._widgets[id].choices=c end
+                UpdateChoices=function(_,c) sec._widgets[id].choices=c end,
             }
         end,
         Button=function(_,label,sub,cb)
-            addWidget({type='button',label=label,sub=sub or '',cb=cb})
+            add({type='button',label=label,sub=sub or '',cb=cb})
             return {}
         end,
         Textbox=function(_,label,val,cb)
-            local id=addWidget({type='textbox',label=label,value=val or '',cb=cb})
+            local id=add({type='textbox',label=label,value=val or '',cb=cb})
             return {Set=function(_,v) sec._widgets[id].value=v; if cb then cb(v) end end}
         end,
         Colorpicker=function(_,label,val,cb)
-            local id=addWidget({type='colorpicker',label=label,value=val or Color3.new(1,1,1),cb=cb})
+            local id=add({type='colorpicker',label=label,value=val or Color3.new(1,1,1),cb=cb})
             return {Set=function(_,v) sec._widgets[id].value=v; if cb then cb(v) end end}
         end,
     }
@@ -348,14 +307,13 @@ end
 -- ─── DROPDOWN POPUP ──────────────────────────────────────────────────────────
 
 local function drawDropdown(click)
-    local dd=UILib._dd
-    if not dd then return click end
+    local dd=UILib._dd; if not dd then return click end
     local iH=20; local total=#dd.choices*iH+8
     rect('dd_bg', dd.x, dd.y, dd.w, total, UILib.C.card)
-    ln('dd_bor_t', dd.x, dd.y, dd.x+dd.w, dd.y, UILib.C.div)
-    ln('dd_bor_b', dd.x, dd.y+total, dd.x+dd.w, dd.y+total, UILib.C.div)
-    ln('dd_bor_l', dd.x, dd.y, dd.x, dd.y+total, UILib.C.div)
-    ln('dd_bor_r', dd.x+dd.w, dd.y, dd.x+dd.w, dd.y+total, UILib.C.div)
+    ln('dd_t', dd.x, dd.y,       dd.x+dd.w, dd.y,       UILib.C.div)
+    ln('dd_b', dd.x, dd.y+total, dd.x+dd.w, dd.y+total, UILib.C.div)
+    ln('dd_l', dd.x, dd.y,       dd.x,       dd.y+total, UILib.C.div)
+    ln('dd_r', dd.x+dd.w, dd.y,  dd.x+dd.w, dd.y+total, UILib.C.div)
     local cancel=true
     for i,ch in ipairs(dd.choices) do
         local cy=dd.y+4+(i-1)*iH
@@ -364,10 +322,11 @@ local function drawDropdown(click)
             rect('dd_hov', dd.x+2, cy, dd.w-4, iH, UILib.C.navhi)
             if click then
                 cancel=not dd.multi
-                if dd.multi then if found then table.remove(dd.value,found) else table.insert(dd.value,ch) end
+                if dd.multi then
+                    if found then table.remove(dd.value,found) else table.insert(dd.value,ch) end
                 else dd.value={ch} end
                 if dd.cb then dd.cb(dd.value) end
-                click=cancel and false or click
+                if cancel then click=false end
             end
         else hide('dd_hov') end
         txt('dd_ch_'..i, dd.x+8, cy+4, ch, found and UILib.C.accent or UILib.C.text, 12)
@@ -379,37 +338,26 @@ end
 -- ─── COLORPICKER POPUP ───────────────────────────────────────────────────────
 
 local function drawColorpicker(heldM, click)
-    local cp=UILib._cp
-    if not cp then return click end
-    local cW,cH=200,195
-    local cx,cy=cp.x,cp.y
+    local cp=UILib._cp; if not cp then return click end
+    local cW,cH=200,195; local cx,cy=cp.x,cp.y
     rect('cp_bg', cx, cy, cW, cH, UILib.C.card)
     txt('cp_lbl', cx+8, cy+6, cp.label, UILib.C.text, 12)
-    local pX,pY,pW,pH=cx+8,cy+22,cW-16,cH-50
-    local hH=12
-    local palH=pH-hH-6
+    local pX,pY,pW=cx+8,cy+22,cW-16
+    local hH=12; local palH=cH-50-hH-6
     rect('cp_pal', pX, pY, pW, palH, Color3.fromHSV(cp.h,1,1))
-    for i=1,16 do
-        local sx=pX+(i-1)*(pW/16); local sw=pW/16+1
-        sq('cp_wh_'..i, sx, pY, sw, palH, Color3.fromRGB(255,255,255), (i-1)/15)
-    end
-    for i=1,16 do
-        local sy=pY+(i-1)*(palH/16); local sh=palH/16+1
-        sq('cp_bk_'..i, pX, sy, pW, sh, Color3.fromRGB(0,0,0), 1-(i-1)/15)
-    end
+    for i=1,16 do sq('cp_wh_'..i, pX+(i-1)*(pW/16), pY, pW/16+1, palH, Color3.fromRGB(255,255,255), (i-1)/15) end
+    for i=1,16 do sq('cp_bk_'..i, pX, pY+(i-1)*(palH/16), pW, palH/16+1, Color3.fromRGB(0,0,0), 1-(i-1)/15) end
     local hY=pY+palH+6
-    local hueColors={Color3.fromRGB(255,0,0),Color3.fromRGB(255,255,0),Color3.fromRGB(0,255,0),Color3.fromRGB(0,255,255),Color3.fromRGB(0,0,255),Color3.fromRGB(255,0,255),Color3.fromRGB(255,0,0)}
+    local hc={Color3.fromRGB(255,0,0),Color3.fromRGB(255,255,0),Color3.fromRGB(0,255,0),Color3.fromRGB(0,255,255),Color3.fromRGB(0,0,255),Color3.fromRGB(255,0,255),Color3.fromRGB(255,0,0)}
     for i=1,6 do
-        local c1,c2=hueColors[i],hueColors[i+1]
-        local segW=pW/6
+        local c1,c2=hc[i],hc[i+1]; local sw=pW/6
         for j=1,8 do
             local t2=(j-1)/7
-            local lc=Color3.new(lerp(c1.R,c2.R,t2),lerp(c1.G,c2.G,t2),lerp(c1.B,c2.B,t2))
-            sq('cp_h_'..i..'_'..j, pX+(i-1)*segW+(j-1)*(segW/8), hY, segW/8+1, hH, lc)
+            sq('cp_h_'..i..'_'..j, pX+(i-1)*sw+(j-1)*(sw/8), hY, sw/8+1, hH,
+                Color3.new(lerp(c1.R,c2.R,t2),lerp(c1.G,c2.G,t2),lerp(c1.B,c2.B,t2)))
         end
     end
-    local dotX=pX+cp.s*pW-4; local dotY=pY+(1-cp.v)*palH-4
-    sq('cp_dot', dotX, dotY, 8, 8, UILib.C.white)
+    sq('cp_dot',  pX+cp.s*pW-4, pY+(1-cp.v)*palH-4, 8, 8, UILib.C.white)
     sq('cp_hdot', pX+cp.h*pW-3, hY, 6, hH, UILib.C.white)
     local nc=Color3.fromHSV(cp.h,cp.s,cp.v)
     sq('cp_sw', cx+8, cy+cH-14, cW-16, 10, nc)
@@ -419,9 +367,7 @@ local function drawColorpicker(heldM, click)
         if hit(pX,pY,pW,palH) then
             cp.s=clamp((mp.X-pX)/pW,0,1); cp.v=1-clamp((mp.Y-pY)/palH,0,1)
         end
-        if hit(pX,hY,pW,hH) then
-            cp.h=clamp((mp.X-pX)/pW,0,1)
-        end
+        if hit(pX,hY,pW,hH) then cp.h=clamp((mp.X-pX)/pW,0,1) end
     end
     if click and not hit(cx,cy,cW,cH) then
         UILib._cp=nil; hidePrefix('cp_'); click=false
@@ -434,61 +380,50 @@ end
 function UILib:Step()
     local C=self.C
 
-    -- Read mouse state then clear click flags
-    local click  = self._m1c; self._m1c = false
-    local heldM  = self._m1h
-    local rclick = self._m2c; self._m2c = false
+    -- poll input exactly like reference library
+    pollInput()
+    setrobloxinput(not self._menu_open)
 
-    -- menu toggle via F1
+    local click  = kPressed('m1')
+    local heldM  = kHeld('m1')
+    local rclick = kPressed('m2')
+
+    -- menu toggle
     if kPressed(self._menu_key) then
         self._menu_open = not self._menu_open
     end
 
-    -- lock roblox input when menu open
-    pcall(setrobloxinput, not self._menu_open)
-
     -- NOTIFICATIONS
     local nx0,ny0=self.x+self.w+8,self.y; local ntH=0
     for ni=#self._notifs,1,-1 do
-        local n=self._notifs[ni]
-        local el=os.clock()-n.at
+        local n=self._notifs[ni]; local el=os.clock()-n.at
         local fade=clamp(el<0.3 and el/0.3 or (el>n.time and 1-(el-n.time)/0.3 or 1),0,1)
         if fade>0.01 then
             local nW=math.max(tbounds(n.text,12).X+20,160); local nH=24
             local nnx=nx0+(nW+8)*(1-fade); local nny=ny0+ntH
             rect('n_'..n.id..'_bg', nnx,nny,nW,nH, C.card, 1-fade)
-            txt('n_'..n.id..'_t', nnx+8,nny+6, n.text, C.text, 12, false, false, 1-fade)
-            local p=clamp(el/n.time,0,1)
-            sq('n_'..n.id..'_p', nnx+2,nny+nH-3, (nW-4)*p, 2, C.accent, 1-fade)
+            txt('n_'..n.id..'_t',   nnx+8,nny+6, n.text, C.text, 12, false, false, 1-fade)
+            sq('n_'..n.id..'_p',    nnx+2,nny+nH-3, (nW-4)*clamp(el/n.time,0,1), 2, C.accent, 1-fade)
             ntH=ntH+nH+4
         end
         if el>n.time+0.4 then removePfx('n_'..n.id..'_'); table.remove(self._notifs,ni) end
     end
 
-    -- CLOSED: hide menu and return
     if not self._menu_open then
-        hidePrefix('m_')
-        hidePrefix('nav_')
-        hidePrefix('s_')
-        return
+        hidePrefix('m_'); hidePrefix('nav_'); hidePrefix('s_'); return
     end
 
     -- DRAG
     if heldM and self._drag then
-        local mp=mouse()
-        self.x=mp.X-self._drag.X; self.y=mp.Y-self._drag.Y
-    elseif not heldM then
-        self._drag=nil
-    end
+        local mp=mouse(); self.x=mp.X-self._drag.X; self.y=mp.Y-self._drag.Y
+    elseif not heldM then self._drag=nil end
 
     local x,y,w,h=self.x,self.y,self.w,self.h
     local sw,pad=self._sw,self._pad
     local tbH=32
 
-    -- OUTER BG
+    -- OUTER BG + TITLE BAR
     rect('m_bg', x, y, w, h, C.bg)
-
-    -- TITLE BAR
     rect('m_tb', x, y, w, tbH, C.side)
     txt('m_title', x+pad+4, y+8, self.title, C.text, 14)
     local tW=tbounds(self.title,14).X
@@ -502,24 +437,36 @@ function UILib:Step()
 
     -- SIDEBAR
     local sbX,sbY,sbH=x,y+tbH,h-tbH
-    rect('m_sb', sbX, sbY, sw, sbH, C.side)
-    ln('m_sdiv', sbX+sw, sbY, sbX+sw, sbY+sbH, C.div)
+    rect('m_sb',   sbX, sbY, sw, sbH, C.side)
+    ln('m_sdiv',   sbX+sw, sbY, sbX+sw, sbY+sbH, C.div)
 
     -- Search bar
     local srX,srY,srW,srH=sbX+pad,sbY+pad,sw-pad*2,26
-    rect('m_sr', srX, srY, srW, srH, C.srch)
-    ln('m_sr_t', srX, srY, srX+srW, srY, C.div)
-    ln('m_sr_b', srX, srY+srH, srX+srW, srY+srH, C.div)
-    ln('m_sr_l', srX, srY, srX, srY+srH, C.div)
-    ln('m_sr_r', srX+srW, srY, srX+srW, srY+srH, C.div)
+    rect('m_sr', srX,srY,srW,srH, C.srch)
+    ln('m_sr_t', srX,srY,       srX+srW,srY,       C.div)
+    ln('m_sr_b', srX,srY+srH,   srX+srW,srY+srH,   C.div)
+    ln('m_sr_l', srX,srY,       srX,srY+srH,        C.div)
+    ln('m_sr_r', srX+srW,srY,   srX+srW,srY+srH,   C.div)
     local isSrch=self._ctx=='search'
-    if isSrch then ln('m_sr_hl', srX, srY, srX+srW, srY, C.accent) end
     local srDisp=self._search=='' and (isSrch and '' or 'Search...') or self._search
     if isSrch then srDisp=self._search..(math.floor(os.clock()*2)%2==0 and '|' or ' ') end
     txt('m_sr_t2', srX+6, srY+7, srDisp, self._search=='' and C.sub or C.text, 12)
     if click then
         if hit(srX,srY,srW,srH) then self._ctx='search'; click=false
         elseif isSrch then self._ctx=nil end
+    end
+    -- search text input
+    if isSrch then
+        local cm={space=' ',minus='-',period='.',comma=',',slash='/'}
+        local sh=kHeld('lshift') or kHeld('rshift')
+        for ch,_ in pairs(self._inputs) do
+            if kPressed(ch) then
+                local m=cm[ch] or ch
+                if m=='enter' or m=='esc' then self._ctx=nil
+                elseif m=='unbound' then self._search=self._search:sub(1,-2)
+                elseif #m==1 then self._search=self._search..(sh and m:upper() or m) end
+            end
+        end
     end
 
     -- Nav items
@@ -531,12 +478,6 @@ function UILib:Step()
         else hide('nav_'..tname..'_bar') end
         txt('nav_'..tname..'_t', sbX+pad+10, navY+8, tname, isOpen and C.text or C.sub, 12)
         if click and hit(sbX+pad,navY,sw-pad*2,28) and not isOpen then
-            local old=self._tree[self._open_tab]
-            if old then
-                for _,sn in ipairs(old._sec_order or {}) do
-                    hidePrefix('s_'..self._open_tab..'_'..sn)
-                end
-            end
             self._open_tab=tname; self._scroll=0; self._scrollT=0; click=false
         end
         navY=navY+28+3
@@ -544,40 +485,39 @@ function UILib:Step()
 
     -- Profile footer
     local pfY=sbY+sbH-38
-    ln('m_pfl', sbX+6, pfY, sbX+sw-6, pfY, C.div)
+    ln('m_pfl',    sbX+6,sbY+sbH-38, sbX+sw-6,sbY+sbH-38, C.div)
     rect('m_pfbg', sbX, pfY, sw, 38, C.side)
-    sq('m_pfav', sbX+pad, pfY+7, 24, 24, C.accdim)
+    sq('m_pfav',   sbX+pad, pfY+7, 24, 24, C.accdim)
     txt('m_pfav_l', sbX+pad+12, pfY+13, (self.username or 'P'):sub(1,1):upper(), C.accent, 11, true)
-    txt('m_pfname', sbX+pad+28, pfY+8, self.username or '', C.text, 11)
-    txt('m_pfsub', sbX+pad+28, pfY+20, self.usertext or '', C.sub, 10)
+    txt('m_pfname', sbX+pad+28, pfY+8,  self.username or '', C.text, 11)
+    txt('m_pfsub',  sbX+pad+28, pfY+20, self.usertext or '', C.sub, 10)
 
     -- CONTENT AREA
     local cX=x+sw+1; local cY=y+tbH; local cW=w-sw-1; local cH=h-tbH
     rect('m_ct', cX, cY, cW, cH, C.content)
     local chH=34
     rect('m_chbg', cX, cY, cW, chH, C.content)
-    txt('m_chtxt', cX+pad+4, cY+10, self._open_tab or '', C.text, 14)
-    ln('m_chdiv', cX+6, cY+chH, cX+cW-6, cY+chH, C.div)
+    txt('m_chtxt',  cX+pad+4, cY+10, self._open_tab or '', C.text, 14)
+    ln('m_chdiv',   cX+6, cY+chH, cX+cW-6, cY+chH, C.div)
 
-    -- scroll (arrow keys)
-    if kPressed(Enum.KeyCode.Up)   then self._scrollT=math.max(0,self._scrollT-35) end
-    if kPressed(Enum.KeyCode.Down) then self._scrollT=self._scrollT+35 end
+    -- scroll with up/down keys
+    if kPressed('up')   then self._scrollT=math.max(0,self._scrollT-35) end
+    if kPressed('down') then self._scrollT=self._scrollT+35 end
     self._scroll=lerp(self._scroll, self._scrollT, 0.2)
 
-    -- WIDGETS
-    local sq2=self._search:lower()
-    local tabData=self._open_tab and self._tree[self._open_tab]
-
+    -- hide inactive tabs
     for _,tname in ipairs(self._tab_order) do
         if tname~=self._open_tab then
             local td=self._tree[tname]
             if td then
-                for _,sn in ipairs(td._sec_order or {}) do
-                    hidePrefix('s_'..tname..'_'..sn)
-                end
+                for _,sn in ipairs(td._sec_order or {}) do hidePrefix('s_'..tname..'_'..sn) end
             end
         end
     end
+
+    -- WIDGETS
+    local sq2=self._search:lower()
+    local tabData=self._open_tab and self._tree[self._open_tab]
 
     if tabData then
         local wY=cY+chH+pad-math.floor(self._scroll)
@@ -585,8 +525,7 @@ function UILib:Step()
         local clipTop=cY+chH; local clipBot=cY+cH
 
         for _,sname in ipairs(tabData._sec_order or {}) do
-            local sec=tabData._items[sname]
-            if not sec then continue end
+            local sec=tabData._items[sname]; if not sec then continue end
             local slid='s_'..self._open_tab..'_'..sname
 
             if wY>=clipTop-20 and wY<=clipBot then
@@ -598,16 +537,15 @@ function UILib:Step()
                 local wid=slid..'_'..wi
                 local wType=w2.type
                 local hasSub=(w2.sub or '')~=''
-                local iH= (wType=='toggle' or wType=='button') and (hasSub and 52 or 34)
-                       or wType=='slider' and 46
-                       or wType=='dropdown' and 46
-                       or wType=='textbox' and 38
-                       or 34
+                local iH=(wType=='toggle' or wType=='button') and (hasSub and 52 or 34)
+                          or wType=='slider'   and 46
+                          or wType=='dropdown' and 46
+                          or wType=='textbox'  and 38
+                          or 34
 
                 if sq2~='' and not w2.label:lower():find(sq2,1,true) then
                     hidePrefix(wid); wY=wY+iH+4; continue
                 end
-
                 if wY+iH<=clipTop or wY>=clipBot then
                     hidePrefix(wid); wY=wY+iH+4; continue
                 end
@@ -616,26 +554,67 @@ function UILib:Step()
                 rect(wid..'_bg', wX, wY, wW, iH, isHov and C.cardhov or C.card)
 
                 if wType=='toggle' then
+                    -- colorpicker swatch on toggle
                     local hasCP=w2.cp~=nil
                     if hasCP then
                         local csz=18; local cx2=wX+wW-csz-8; local cy2=wY+(iH-csz)/2
-                        sq(wid..'_cp', cx2, cy2, csz, csz, w2.cp.value)
-                        ln(wid..'_cpb_t', cx2,cy2, cx2+csz,cy2, C.div)
-                        ln(wid..'_cpb_b', cx2,cy2+csz, cx2+csz,cy2+csz, C.div)
-                        ln(wid..'_cpb_l', cx2,cy2, cx2,cy2+csz, C.div)
-                        ln(wid..'_cpb_r', cx2+csz,cy2, cx2+csz,cy2+csz, C.div)
+                        sq(wid..'_cp',    cx2,cy2,csz,csz, w2.cp.value)
+                        ln(wid..'_cpt',   cx2,cy2,      cx2+csz,cy2,      C.div)
+                        ln(wid..'_cpb',   cx2,cy2+csz,  cx2+csz,cy2+csz, C.div)
+                        ln(wid..'_cpl',   cx2,cy2,      cx2,cy2+csz,      C.div)
+                        ln(wid..'_cpr',   cx2+csz,cy2,  cx2+csz,cy2+csz, C.div)
                         if click and hit(cx2,cy2,csz,csz) then
                             local h2,s2,v2=rgbToHsv(w2.cp.value.R,w2.cp.value.G,w2.cp.value.B)
                             local ppx=cX+cW+4; if ppx+200>screen().X then ppx=cX-204 end
-                            UILib._cp={x=ppx,y=cY,label=w2.cp.label,cb=function(c) w2.cp.value=c; if w2.cp.cb then w2.cp.cb(c) end end,h=h2,s=s2,v=v2}
+                            UILib._cp={x=ppx,y=cY,label=w2.cp.label,
+                                cb=function(c) w2.cp.value=c; if w2.cp.cb then w2.cp.cb(c) end end,
+                                h=h2,s=s2,v=v2}
                             click=false
                         end
                     end
+                    -- keybind label
+                    if w2.kb then
+                        local kb=w2.kb
+                        local kbText='['..(kb.listening and '...' or (kb.value and kb.value:upper() or '-'))..']'
+                        local kbX=wX+wW-(hasCP and 62 or 44)-tbounds(kbText,10).X
+                        txt(wid..'_kb', kbX, wY+(iH-10)/2, kbText, C.sub, 10)
+                        if click and hit(kbX,wY,tbounds(kbText,10).X,iH) then
+                            kb.listening=true; kb.at=os.clock(); click=false
+                        end
+                        if kb.listening then
+                            for kn,_ in pairs(self._inputs) do
+                                if kPressed(kn) then
+                                    if kn~='m1' or os.clock()-kb.at>0.2 then
+                                        kb.value=(kn~='unbound') and kn or nil
+                                        kb.listening=false
+                                        if kb.cb then kb.cb(kb.value,kb.mode) end
+                                    end
+                                end
+                            end
+                        end
+                        -- keybind activation
+                        if not kb.listening and kb.value then
+                            if kb.mode=='Hold' then
+                                local wasHeld=kHeld(kb.value)
+                                if wasHeld~=w2.value then
+                                    w2.value=wasHeld; if w2.cb then w2.cb(w2.value) end
+                                end
+                            elseif kb.mode=='Toggle' then
+                                if kPressed(kb.value) then
+                                    w2.value=not w2.value; if w2.cb then w2.cb(w2.value) end
+                                end
+                            elseif kb.mode=='Always' then
+                                if not w2.value then w2.value=true; if w2.cb then w2.cb(true) end end
+                            end
+                        end
+                    end
+                    -- toggle pill
                     local tr=hasCP and (wW-56) or (wW-50)
+                    if w2.kb then tr=tr-tbounds('[X]',10).X-10 end
                     local tX=wX+tr; local tY=wY+(iH-18)/2
                     local onC=w2.unsafe and Color3.fromRGB(255,180,0) or C.accent
-                    sq(wid..'_trk', tX, tY, 34, 18, w2.value and onC or C.trkoff)
-                    sq(wid..'_thm', w2.value and tX+16 or tX+2, tY+2, 14, 14, C.white)
+                    sq(wid..'_trk', tX,tY,34,18, w2.value and onC or C.trkoff)
+                    sq(wid..'_thm', w2.value and tX+16 or tX+2, tY+2, 14,14, C.white)
                     if click and hit(tX,tY,34,18) then
                         w2.value=not w2.value; if w2.cb then w2.cb(w2.value) end; click=false
                     end
@@ -648,10 +627,10 @@ function UILib:Step()
                     local vt=tostring(w2.value)..w2.suffix
                     txt(wid..'_val', wX+wW-tbounds(vt,11).X-8, wY+6, vt, C.accent, 11)
                     local slX=wX+10; local slY2=wY+26; local slW=wW-20
-                    sq(wid..'_trk', slX, slY2, slW, 4, C.trkoff)
+                    sq(wid..'_trk', slX,slY2,slW,4, C.trkoff)
                     local pct=clamp((w2.value-w2.min)/(w2.max-w2.min),0,1)
-                    if pct>0 then sq(wid..'_fill', slX, slY2, math.max(2,slW*pct), 4, C.accent) end
-                    sq(wid..'_thm', slX+slW*pct-5, slY2-3, 10, 10, C.white)
+                    if pct>0 then sq(wid..'_fill', slX,slY2, math.max(2,slW*pct),4, C.accent) end
+                    sq(wid..'_thm', slX+slW*pct-5, slY2-3, 10,10, C.white)
                     if heldM then
                         if hit(slX-4,slY2-6,slW+8,16) and click then self._slider_drag=wid; click=false end
                         if self._slider_drag==wid then
@@ -666,17 +645,18 @@ function UILib:Step()
                 elseif wType=='dropdown' then
                     txt(wid..'_lbl', wX+10, wY+6, w2.label, C.text, 12)
                     local dBX=wX+10; local dBY=wY+22; local dBW=wW-20; local dBH=18
-                    rect(wid..'_box', dBX, dBY, dBW, dBH, C.srch)
-                    ln(wid..'_bt', dBX,dBY, dBX+dBW,dBY, C.div)
+                    rect(wid..'_box', dBX,dBY,dBW,dBH, C.srch)
+                    ln(wid..'_bt', dBX,dBY,     dBX+dBW,dBY,     C.div)
                     ln(wid..'_bb', dBX,dBY+dBH, dBX+dBW,dBY+dBH, C.div)
-                    ln(wid..'_bl', dBX,dBY, dBX,dBY+dBH, C.div)
+                    ln(wid..'_bl', dBX,dBY,     dBX,dBY+dBH,     C.div)
                     ln(wid..'_br', dBX+dBW,dBY, dBX+dBW,dBY+dBH, C.div)
-                    local disp=table.concat(w2.value,', ')
-                    if #disp==0 then disp='None' end
-                    txt(wid..'_val', dBX+6, dBY+3, disp, C.text, 11)
-                    txt(wid..'_arr', dBX+dBW-12, dBY+4, 'v', C.sub, 9)
+                    local disp=table.concat(w2.value,', '); if #disp==0 then disp='None' end
+                    txt(wid..'_val', dBX+6,dBY+3,         disp,  C.text, 11)
+                    txt(wid..'_arr', dBX+dBW-12,dBY+4,    'v',   C.sub,  9)
                     if click and hit(dBX,dBY,dBW,dBH) then
-                        UILib._dd={x=dBX,y=dBY+dBH,w=dBW,value=w2.value,choices=w2.choices,multi=w2.multi,cb=function(v) w2.value=v; if w2.cb then w2.cb(v) end end}
+                        UILib._dd={x=dBX,y=dBY+dBH,w=dBW,value=w2.value,
+                            choices=w2.choices,multi=w2.multi,
+                            cb=function(v) w2.value=v; if w2.cb then w2.cb(v) end end}
                         click=false
                     end
 
@@ -691,31 +671,50 @@ function UILib:Step()
                     local isTyp=self._ctx==wid
                     txt(wid..'_lbl', wX+10, wY+4, w2.label, C.sub, 10)
                     local tBX=wX+10; local tBY=wY+16; local tBW=wW-20; local tBH=16
-                    rect(wid..'_box', tBX, tBY, tBW, tBH, C.srch)
-                    ln(wid..'_bt', tBX,tBY, tBX+tBW,tBY, isTyp and C.accent or C.div)
-                    ln(wid..'_bb', tBX,tBY+tBH, tBX+tBW,tBY+tBH, isTyp and C.accent or C.div)
-                    ln(wid..'_bl', tBX,tBY, tBX,tBY+tBH, isTyp and C.accent or C.div)
-                    ln(wid..'_br', tBX+tBW,tBY, tBX+tBW,tBY+tBH, isTyp and C.accent or C.div)
-                    local disp=(w2.value~='' and w2.value or (isTyp and '' or w2.label))..(isTyp and (math.floor(os.clock()*2)%2==0 and '|' or ' ') or '')
-                    txt(wid..'_val', tBX+4, tBY+3, disp, w2.value~='' and C.text or C.sub, 11)
+                    rect(wid..'_box', tBX,tBY,tBW,tBH, C.srch)
+                    local bc=isTyp and C.accent or C.div
+                    ln(wid..'_bt', tBX,tBY,     tBX+tBW,tBY,     bc)
+                    ln(wid..'_bb', tBX,tBY+tBH, tBX+tBW,tBY+tBH, bc)
+                    ln(wid..'_bl', tBX,tBY,     tBX,tBY+tBH,     bc)
+                    ln(wid..'_br', tBX+tBW,tBY, tBX+tBW,tBY+tBH, bc)
+                    local cur=isTyp and (math.floor(os.clock()*2)%2==0 and '|' or ' ') or ''
+                    local disp=(w2.value~='' and w2.value or (isTyp and '' or w2.label))..cur
+                    txt(wid..'_val', tBX+4,tBY+3, disp, w2.value~='' and C.text or C.sub, 11)
                     if click then
-                        if hit(tBX,tBY,tBW,tBH) then
-                            self._ctx=wid; self._ctx_widget=w2; click=false
+                        if hit(tBX,tBY,tBW,tBH) then self._ctx=wid; self._ctx_widget=w2; click=false
                         elseif isTyp then self._ctx=nil; self._ctx_widget=nil end
+                    end
+                    if isTyp then
+                        local cm={space=' ',minus='-',period='.',comma=',',slash='/'}
+                        local sm={['1']='!',['2']='@',['3']='#',['4']='$',['5']='%',['0']=')'}
+                        local sh=kHeld('lshift') or kHeld('rshift')
+                        for ch,_ in pairs(self._inputs) do
+                            if kPressed(ch) then
+                                local m=cm[ch] or ch
+                                if m=='enter' or m=='esc' then self._ctx=nil; self._ctx_widget=nil
+                                elseif m=='unbound' then w2.value=w2.value:sub(1,-2); if w2.cb then w2.cb(w2.value) end
+                                elseif #m==1 then
+                                    if sh and sm[m] then m=sm[m] elseif sh then m=m:upper() end
+                                    w2.value=w2.value..m; if w2.cb then w2.cb(w2.value) end
+                                end
+                            end
+                        end
                     end
 
                 elseif wType=='colorpicker' then
                     txt(wid..'_lbl', wX+10, wY+8, w2.label, C.text, 12)
                     local csz=20; local cx2=wX+wW-csz-8; local cy2=wY+7
-                    sq(wid..'_sw', cx2, cy2, csz, csz, w2.value)
-                    ln(wid..'_sb_t', cx2,cy2, cx2+csz,cy2, C.div)
-                    ln(wid..'_sb_b', cx2,cy2+csz, cx2+csz,cy2+csz, C.div)
-                    ln(wid..'_sb_l', cx2,cy2, cx2,cy2+csz, C.div)
-                    ln(wid..'_sb_r', cx2+csz,cy2, cx2+csz,cy2+csz, C.div)
+                    sq(wid..'_sw',   cx2,cy2,csz,csz, w2.value)
+                    ln(wid..'_sb_t', cx2,cy2,      cx2+csz,cy2,      C.div)
+                    ln(wid..'_sb_b', cx2,cy2+csz,  cx2+csz,cy2+csz, C.div)
+                    ln(wid..'_sb_l', cx2,cy2,      cx2,cy2+csz,      C.div)
+                    ln(wid..'_sb_r', cx2+csz,cy2,  cx2+csz,cy2+csz, C.div)
                     if click and hit(cx2,cy2,csz,csz) then
                         local h2,s2,v2=rgbToHsv(w2.value.R,w2.value.G,w2.value.B)
                         local ppx=cX+cW+4; if ppx+200>screen().X then ppx=cX-204 end
-                        UILib._cp={x=ppx,y=cY,label=w2.label,cb=function(c) w2.value=c; if w2.cb then w2.cb(c) end end,h=h2,s=s2,v=v2}
+                        UILib._cp={x=ppx,y=cY,label=w2.label,
+                            cb=function(c) w2.value=c; if w2.cb then w2.cb(c) end end,
+                            h=h2,s=s2,v=v2}
                         click=false
                     end
                 end
@@ -730,9 +729,9 @@ function UILib:Step()
     end
 
     click=drawDropdown(click)
-    click=drawColorpicker(heldM, click)
+    click=drawColorpicker(heldM,click)
 
-    -- Repaint sidebar on top
+    -- Repaint sidebar on top (z-order workaround)
     rect('m_sb2', sbX, sbY, sw, sbH, C.side)
     ln('m_sdiv2', sbX+sw, sbY, sbX+sw, sbY+sbH, C.div)
     rect('m_sr2', srX, srY, srW, srH, C.srch)
@@ -746,15 +745,15 @@ function UILib:Step()
         txt('nav2_'..tname..'_t', sbX+pad+10, navY2+8, tname, isOpen and C.text or C.sub, 12)
         navY2=navY2+28+3
     end
-    rect('m_pfbg2', sbX, pfY, sw, 38, C.side)
-    sq('m_pfav2', sbX+pad, pfY+7, 24, 24, C.accdim)
+    rect('m_pfbg2',  sbX, pfY, sw, 38, C.side)
+    sq('m_pfav2',    sbX+pad, pfY+7, 24, 24, C.accdim)
     txt('m_pfav_l2', sbX+pad+12, pfY+13, (self.username or 'P'):sub(1,1):upper(), C.accent, 11, true)
-    txt('m_pfname2', sbX+pad+28, pfY+8, self.username or '', C.text, 11)
-    txt('m_pfsub2', sbX+pad+28, pfY+20, self.usertext or '', C.sub, 10)
-    rect('m_chbg2', cX, cY, cW, chH, C.content)
-    txt('m_chtxt2', cX+pad+4, cY+10, self._open_tab or '', C.text, 14)
-    ln('m_chdiv2', cX+6, cY+chH, cX+cW-6, cY+chH, C.div)
-    rect('m_bot', cX, cY+cH-2, cW, 4, C.bg)
+    txt('m_pfname2', sbX+pad+28, pfY+8,  self.username or '', C.text, 11)
+    txt('m_pfsub2',  sbX+pad+28, pfY+20, self.usertext or '',  C.sub, 10)
+    rect('m_chbg2',  cX, cY, cW, chH, C.content)
+    txt('m_chtxt2',  cX+pad+4, cY+10, self._open_tab or '', C.text, 14)
+    ln('m_chdiv2',   cX+6, cY+chH, cX+cW-6, cY+chH, C.div)
+    rect('m_bot',    cX, cY+cH-2, cW, 4, C.bg)
 end
 
 return UILib
