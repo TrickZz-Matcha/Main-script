@@ -670,16 +670,7 @@ function UILib:Step()
         end
     else undrawPrefix('cp_') end
 
-    -- menu fade
-    local menuFade=1-(self._menu_toggled_at-(os.clock()-0.25))/0.25
-    if menuFade<1.1 then
-        local a=math.abs((self._menu_open and 0 or 1)-clamp(menuFade,0,1))
-        for k,o in pairs(D) do
-            if k:sub(1,2)=='m_' or k:sub(1,4)=='nav_' or k:sub(1,2)=='s_' then
-                if o then o.Transparency=a end
-            end
-        end
-    end
+    -- menu fade removed (was causing flicker on open/close)
 end
 
 UILib._scroll  = 0
