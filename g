@@ -437,7 +437,7 @@ function UILib:Step()
             if not sec then continue end
             local slid='s_'..self._open_tab..'_'..sname
 
-            if wY>=clipTop-20 and wY<=clipBot then
+            if wY>=clipTop+18 and wY+18<=clipBot then
                 draw(slid..'_hdr','text',C.sub,10,Vector2.new(wX+2,wY+3),sname:upper(),false,false,10)
             else undraw(slid..'_hdr') end
             wY=wY+18; totalH=totalH+18
@@ -454,7 +454,7 @@ function UILib:Step()
 
                 totalH=totalH+iH+4
 
-                if wY+iH<=clipTop or wY+iH>clipBot then
+                if wY<clipTop or wY+iH>clipBot then
                     undrawPrefix(wid); wY=wY+iH+4; continue
                 end
 
