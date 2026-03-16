@@ -17,6 +17,7 @@ UILib = {
     _scroll      = 0,
     _scrollT     = 0,
     _wheelConn   = nil,     -- mouse wheel connection
+    _wheelDelta  = 0,       -- accumulated scroll delta from wheel hook
     _slider_drag = nil,
     _dd          = nil,     -- active dropdown
     _cp          = nil,     -- active colorpicker
@@ -183,27 +184,59 @@ local function pressed(key) return UILib._inputs[key] and UILib._inputs[key].c e
 local function held(key)    return UILib._inputs[key] and UILib._inputs[key].h end
 
 -- ─── MOUSE WHEEL SETUP ───────────────────────────────────────────────────────
+-- setrobloxinput(false) blocks UserInputService, so we use the exploit-level
+-- mouse scroll hook (mouse1click/mouse2click equivalents for wheel) instead.
+-- Most executors expose onmousewheel or a WndProc hook via hookfunction/
+-- connectsignal. We try several known APIs in order of preference.
 
 local function setupWheelScroll()
     if UILib._wheelConn then return end
+
+    -- Method 1: mousescrolled / onmousewheel (Synapse X, KRNL, Fluxus, etc.)
+    if mousescrolled then
+        UILib._wheelConn = mousescrolled:Connect(function(delta)
+            if not UILib._menu_open then return end
+            local tbH=32; local chH=34
+            local cX=UILib.x+UILib._sw+1
+            local cY=UILib.y+tbH+chH
+            local cW=UILib.w-UILib._sw-1
+            local cH=UILib.h-tbH-chH
+            local mp=mouse()
+            if mp.X>=cX and mp.X<=cX+cW and mp.Y>=cY and mp.Y<=cY+cH then
+                UILib._wheelDelta = UILib._wheelDelta - delta * 40
+            end
+        end)
+        return
+    end
+
+    -- Method 2: UIS InputChanged — works if executor does NOT block it via setrobloxinput
+    -- (some executors keep UIS alive even when roblox input is locked)
     local ok, UIS = pcall(function() return game:GetService('UserInputService') end)
-    if not ok or not UIS then return end
-    UILib._wheelConn = UIS.InputChanged:Connect(function(input)
-        if input.UserInputType ~= Enum.UserInputType.MouseWheel then return end
-        if not UILib._menu_open then return end
-        -- content area bounds (title bar = 32, content header = 34)
-        local tbH = 32
-        local chH = 34
-        local cX = UILib.x + UILib._sw + 1
-        local cY = UILib.y + tbH + chH
-        local cW = UILib.w - UILib._sw - 1
-        local cH = UILib.h - tbH - chH
-        local mp = mouse()
-        if mp.X >= cX and mp.X <= cX + cW and mp.Y >= cY and mp.Y <= cY + cH then
-            -- input.Position.Z: +1 = scroll up, -1 = scroll down
-            UILib._scrollT = math.max(0, UILib._scrollT - input.Position.Z * 40)
-        end
-    end)
+    if ok and UIS then
+        local conn
+        pcall(function()
+            conn = UIS.InputChanged:Connect(function(input, gp)
+                -- gp (gameProcessed) is false for wheel even when roblox input locked on some executors
+                if input.UserInputType ~= Enum.UserInputType.MouseWheel then return end
+                if not UILib._menu_open then return end
+                local tbH=32; local chH=34
+                local cX=UILib.x+UILib._sw+1
+                local cY=UILib.y+tbH+chH
+                local cW=UILib.w-UILib._sw-1
+                local cH=UILib.h-tbH-chH
+                local mp=mouse()
+                if mp.X>=cX and mp.X<=cX+cW and mp.Y>=cY and mp.Y<=cY+cH then
+                    UILib._wheelDelta = UILib._wheelDelta - input.Position.Z * 40
+                end
+            end)
+        end)
+        if conn then UILib._wheelConn = conn; return end
+    end
+
+    -- Method 3: Fallback polling via iskeypressed VK codes for wheel up/down
+    -- VK 0x0E = WM_MOUSEWHEEL up sim is not standard, but some exploits map:
+    -- We mark _wheelConn as 'fallback' so we don't retry, and handle it in Step()
+    UILib._wheelConn = 'fallback'
 end
 
 -- ─── PUBLIC API ──────────────────────────────────────────────────────────────
@@ -233,10 +266,11 @@ end
 
 function UILib:Unload()
     -- Disconnect mouse wheel listener
-    if self._wheelConn then
-        self._wheelConn:Disconnect()
+    if self._wheelConn and self._wheelConn ~= 'fallback' then
+        pcall(function() self._wheelConn:Disconnect() end)
         self._wheelConn = nil
     end
+    self._wheelDelta = 0
     removePfx('')
     pcall(setrobloxinput,true)
 end
@@ -552,9 +586,31 @@ function UILib:Step()
     ln('m_chdiv', cX+6, cY+chH, cX+cW-6, cY+chH, C.div)
 
     -- ─── SCROLL ──────────────────────────────────────────────────────────────
-    -- Arrow key scrolling (mouse wheel is handled by setupWheelScroll connection)
+    -- Arrow key scrolling
     if pressed('up')   then self._scrollT=math.max(0,self._scrollT-35) end
     if pressed('down') then self._scrollT=self._scrollT+35 end
+
+    -- Mouse wheel: consume accumulated delta from the wheel hook
+    if self._wheelDelta ~= 0 then
+        self._scrollT = math.max(0, self._scrollT + self._wheelDelta)
+        self._wheelDelta = 0
+    end
+
+    -- Fallback: if no hook connected, poll via iskeypressed for common
+    -- executor wheel VK mappings (wheel up = 0x0E, wheel down = 0x0F)
+    if self._wheelConn == 'fallback' then
+        local tbH2=32; local chH2=34
+        local cX2=self.x+self._sw+1; local cY2=self.y+tbH2+chH2
+        local cW2=self.w-self._sw-1; local cH2=self.h-tbH2-chH2
+        if hit(cX2,cY2,cW2,cH2) then
+            local wu=false; local wd=false
+            pcall(function() wu=iskeypressed(0x0E) end)
+            pcall(function() wd=iskeypressed(0x0F) end)
+            if wu then self._scrollT=math.max(0,self._scrollT-35) end
+            if wd then self._scrollT=self._scrollT+35 end
+        end
+    end
+
     self._scroll=lerp(self._scroll, self._scrollT, 0.2)
 
     -- WIDGETS
