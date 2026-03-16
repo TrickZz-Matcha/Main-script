@@ -454,7 +454,7 @@ function UILib:Step()
 
                 totalH=totalH+iH+4
 
-                if wY+iH<=clipTop or wY>=clipBot then
+                if wY+iH<=clipTop or wY+iH>clipBot then
                     undrawPrefix(wid); wY=wY+iH+4; continue
                 end
 
