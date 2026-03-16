@@ -24,6 +24,9 @@ UILib = {
     _scroll      = 0,
     _scrollT     = 0,
     _scroll_delta = 0,   -- set externally by UIS wheel event
+    _scrollbar_drag = false,
+    _scrollbar_drag_offset = 0,
+    _scrollbar_height = 0,
 
     title    = 'matcha',
     subtitle = 'beta',
@@ -67,6 +70,50 @@ local function rgbToHsv(r,g,b)
         h=h/6
     end
     return h,s,v
+end
+
+self._scrollT=clamp(self._scrollT,0,maxScroll)
+
+-- SCROLLBAR -------------------------------------------------------
+
+if maxScroll > 0 then
+    local sbW = 6
+    local sbX = cX + cW - sbW - 4
+    local sbY = cY + chH + pad
+    local sbH = cH - chH - pad*2
+
+    -- handle size based on visible ratio
+    local ratio = clamp((cH-chH-pad*2)/(totalH),0,1)
+    local handleH = math.max(20, sbH * ratio)
+    self._scrollbar_height = handleH
+
+    local handleY = sbY + (self._scroll / maxScroll) * (sbH - handleH)
+
+    draw('scroll_trk','rect',C.side,20,Vector2.new(sbX,sbY),Vector2.new(sbW,sbH),true)
+    draw('scroll_hdl','rect',C.accent,21,Vector2.new(sbX,handleY),Vector2.new(sbW,handleH),true)
+
+    local mp = getMouse()
+
+    -- start drag
+    if clickFrame and inBounds(Vector2.new(sbX,handleY),Vector2.new(sbW,handleH)) then
+        self._scrollbar_drag = true
+        self._scrollbar_drag_offset = mp.Y - handleY
+        clickFrame = false
+    end
+
+    -- dragging
+    if mouseHeld and self._scrollbar_drag then
+        local newY = clamp(mp.Y - self._scrollbar_drag_offset, sbY, sbY + sbH - handleH)
+        local pct = (newY - sbY) / (sbH - handleH)
+        self._scrollT = pct * maxScroll
+    end
+
+    if not mouseHeld then
+        self._scrollbar_drag = false
+    end
+else
+    undraw('scroll_trk')
+    undraw('scroll_hdl')
 end
 
 -- ─── DRAWING ─────────────────────────────────────────────────────────────────
