@@ -11,7 +11,7 @@ UILib = {
     _tab_order= {},
     _open_tab = nil,
     _menu_open= true,   -- START OPEN
-    _menu_key = Enum.KeyCode.F1,
+    _menu_key = nil,    -- set after load
     -- UIS state
     _keys     = {},     -- [KeyCode] = {h=bool, c=bool}
     _m1h      = false, _m1c = false,
@@ -58,6 +58,7 @@ UILib = {
     },
 }
 
+UILib._menu_key = Enum.KeyCode.F1
 _G.UILib = UILib
 
 -- ─── UTILS ───────────────────────────────────────────────────────────────────
@@ -240,11 +241,15 @@ local _connText = UIS.InputBegan:Connect(function(inp, gp)
 end)
 
 local function kPressed(kc)
+    if kc == nil then return false end
     local v = _keyPressed[kc]
-    _keyPressed[kc] = false
+    if v then _keyPressed[kc] = false end
     return v == true
 end
-local function kHeld(kc) return _keyHeld[kc] == true end
+local function kHeld(kc)
+    if kc == nil then return false end
+    return _keyHeld[kc] == true
+end
 
 -- ─── PUBLIC API ──────────────────────────────────────────────────────────────
 
