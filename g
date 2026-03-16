@@ -295,6 +295,7 @@ function UILib:Step()
 
     if not self._menu_open then
         undrawPrefix('m_'); undrawPrefix('nav_'); undrawPrefix('s_')
+        undraw('sb_trk'); undraw('sb_thm')
         return
     end
 
@@ -318,9 +319,9 @@ function UILib:Step()
         draw('m_tr'..(_row), 'rect', C.side, 2, Vector2.new(_lx, y+_row), Vector2.new(_rw, 1), true)
         draw('m_br'..(_row), 'rect', C.bg,   2, Vector2.new(_lx, y+h-1-_row), Vector2.new(_rw, 1), true)
     end
-    draw('m_bg', 'rect', C.bg,   1, Vector2.new(x, y+_wr), Vector2.new(w, h-_wr*2),    true)
-    draw('m_tb', 'rect', C.side, 2, Vector2.new(x, y+_wr), Vector2.new(w, tbH-_wr),    true)
-    draw('m_ttl', 'text', C.text, 3, Vector2.new(x+pad+4,y+8), self.title,         false,false,14)
+    draw('m_bg',  'rect', C.bg,   1, Vector2.new(x, y+_wr),  Vector2.new(w, h-_wr*2), true)
+    draw('m_tb',  'rect', C.side, 2, Vector2.new(x, y+_wr),  Vector2.new(w, tbH-_wr), true)
+    draw('m_ttl', 'text', C.text, 3, Vector2.new(x+pad+4,y+8), self.title, false,false,14)
     local tW=textW(self.title,14)
     draw('m_sub', 'text', C.sub,  3, Vector2.new(x+pad+4+tW+6,y+10), self.subtitle, false,false,11)
     draw('m_dr','rect',Color3.fromRGB(255,95,86), 3,Vector2.new(x+w-14,y+11),Vector2.new(10,10),true)
@@ -381,7 +382,7 @@ function UILib:Step()
     end
     self._scroll = lerp(self._scroll, self._scrollT, 0.25)
 
-    -- SCROLLBAR
+    -- scrollbar constants (used by both widget loop and scrollbar draw)
     local sbW2=8; local sbX2=cX+cW-sbW2-4; local sbY2=cY+chH+6; local sbH2=cH-chH-14
 
     -- WIDGETS
@@ -397,7 +398,7 @@ function UILib:Step()
 
     if tabData then
         local wY = cY+chH+pad - math.floor(self._scroll)
-        local wX=cX+pad; local wW=cW-pad*2-sbW2-12  -- leave room for scrollbar
+        local wX=cX+pad; local wW=cW-pad*2-sbW2-12
         local clipTop=cY+chH; local clipBot=cY+cH
         local totalH=0
 
@@ -406,7 +407,7 @@ function UILib:Step()
             if not sec then continue end
             local slid='s_'..self._open_tab..'_'..sname
 
-            if wY>=clipTop-20 and wY<=clipBot then
+            if wY>=clipTop and wY<=clipBot then
                 draw(slid..'_hdr','text',C.sub,10,Vector2.new(wX+2,wY+3),sname:upper(),false,false,10)
             else undraw(slid..'_hdr') end
             wY=wY+18; totalH=totalH+18
@@ -423,11 +424,8 @@ function UILib:Step()
 
                 totalH=totalH+iH+4
 
-                if wY+iH<=clipTop or wY>=clipBot then
-                    undrawPrefix(wid); wY=wY+iH+4; continue
-                end
-                -- partial overlap at top: hide and skip
-                if wY < clipTop then
+                -- skip if fully outside clip zone or partially above header
+                if wY < clipTop or wY+iH <= clipTop or wY >= clipBot then
                     undrawPrefix(wid); wY=wY+iH+4; continue
                 end
 
@@ -573,19 +571,16 @@ function UILib:Step()
 
     -- SCROLLBAR
     if maxScroll > 0 then
-        -- track
         draw('sb_trk','rect',C.trkoff,20,Vector2.new(sbX2,sbY2),Vector2.new(sbW2,sbH2),true)
-        -- thumb: height proportional to how much content is visible
         local visRatio = (cH-chH-pad*2) / ((cH-chH-pad*2) + maxScroll)
         local thumbH = math.max(20, math.floor(sbH2 * visRatio))
-        local thumbPct = maxScroll > 0 and clamp(math.floor(self._scroll)/maxScroll, 0, 1) or 0
         local travelH = math.max(0, sbH2 - thumbH)
+        local thumbPct = maxScroll > 0 and clamp(math.floor(self._scroll)/maxScroll, 0, 1) or 0
         local thumbY = sbY2 + math.floor(travelH * thumbPct)
         thumbY = clamp(thumbY, sbY2, sbY2 + travelH)
         local isHovSB = inBounds(Vector2.new(sbX2-4,sbY2),Vector2.new(sbW2+8,sbH2))
         local thumbCol = (isHovSB or self._sb_drag) and C.accent or C.sub
         draw('sb_thm','rect',thumbCol,21,Vector2.new(sbX2,thumbY),Vector2.new(sbW2,thumbH),true)
-        -- drag
         if mouseHeld then
             if clickFrame and isHovSB then self._sb_drag=true; clickFrame=false end
             if self._sb_drag then
@@ -597,43 +592,14 @@ function UILib:Step()
             self._sb_drag=false
         end
     else
-        undraw('sb_trk'); undraw('sb_thm'); undrawPrefix('sb_thm_')
+        undraw('sb_trk'); undraw('sb_thm')
         self._sb_drag=false
     end
 
-    -- REPAINT SIDEBAR on top so content widgets cannot bleed over it
-    draw('m_sb2', 'rect',C.side,49,Vector2.new(sbX,sbY),Vector2.new(sw,sbH),true)
-    draw('m_sdiv2','line',C.div,49,Vector2.new(sbX+sw,sbY),Vector2.new(sbX+sw,sbY+sbH),1)
-    -- repaint nav items on top
-    local navY3=sbY+pad
-    for _,tname3 in ipairs(self._tab_order) do
-        local isOpen3=self._open_tab==tname3
-        draw('nav2_'..tname3..'_bg','rect',isOpen3 and C.navhi or C.side,50,Vector2.new(sbX+pad,navY3),Vector2.new(sw-pad*2,28),true)
-        if isOpen3 then draw('nav2_'..tname3..'_bar','rect',C.accent,51,Vector2.new(sbX+pad,navY3+4),Vector2.new(3,20),true)
-        else undraw('nav2_'..tname3..'_bar') end
-        draw('nav2_'..tname3..'_t','text',isOpen3 and C.text or C.sub,51,Vector2.new(sbX+pad+10,navY3+8),tname3,false,false,12)
-        navY3=navY3+28+3
-    end
-    -- repaint profile
-    draw('m_pfbg2','rect',C.side,49,Vector2.new(sbX,pfY),Vector2.new(sw,38),true)
-    draw('m_pfav2','rect',C.accdim,50,Vector2.new(sbX+pad,pfY+7),Vector2.new(24,24),true)
-    draw('m_pfn2','text',C.accent,51,Vector2.new(sbX+pad+12,pfY+13),(self.username or 'P'):sub(1,1):upper(),false,true,11)
-    draw('m_pfname2','text',C.text,51,Vector2.new(sbX+pad+28,pfY+8),self.username or '',false,false,11)
-    draw('m_pfsub2','text',C.sub,51,Vector2.new(sbX+pad+28,pfY+20),self.usertext or '',false,false,10)
-    -- repaint title bar
-    draw('m_tb2','rect',C.side,49,Vector2.new(x,y),Vector2.new(w,tbH),true)
-    draw('m_ttl2','text',C.text,50,Vector2.new(x+pad+4,y+8),self.title,false,false,14)
-    local tW2=textW(self.title,14)
-    draw('m_sub2','text',C.sub,50,Vector2.new(x+pad+4+tW2+6,y+10),self.subtitle,false,false,11)
-    draw('m_dr2','rect',Color3.fromRGB(255,95,86), 50,Vector2.new(x+w-14,y+11),Vector2.new(10,10),true)
-    draw('m_dy2','rect',Color3.fromRGB(255,189,46),50,Vector2.new(x+w-28,y+11),Vector2.new(10,10),true)
-    draw('m_dg2','rect',Color3.fromRGB(39,201,63), 50,Vector2.new(x+w-42,y+11),Vector2.new(10,10),true)
-
-    -- COVER RECTS: repaint header and bottom edge over any widget bleed
-    draw('m_chbg2','rect',C.content,50,Vector2.new(cX,cY),Vector2.new(cW,chH),true)
-    draw('m_chtxt2','text',C.text,51,Vector2.new(cX+pad+4,cY+10),self._open_tab or '',false,false,14)
-    draw('m_chdiv2','line',C.div,51,Vector2.new(cX+6,cY+chH),Vector2.new(cX+cW-6,cY+chH),1)
-    draw('m_cbot','rect',C.bg,50,Vector2.new(cX,cY+cH),Vector2.new(cW,4),true)
+    -- Repaint header over widgets that bleed into it when scrolling
+    draw('m_chbg2','rect',C.content,25,Vector2.new(cX,cY),Vector2.new(cW,chH),true)
+    draw('m_chtxt2','text',C.text,  26,Vector2.new(cX+pad+4,cY+10),self._open_tab or '',false,false,14)
+    draw('m_chdiv2','line',C.div,   26,Vector2.new(cX+6,cY+chH),Vector2.new(cX+cW-6,cY+chH),1)
 
     -- DROPDOWN
     local dd=self._active_dropdown
@@ -724,7 +690,6 @@ function UILib:Step()
     end
 end
 
--- reset scroll on every load so stale state from previous execution does not persist
 UILib._scroll  = 0
 UILib._scrollT = 0
 UILib._sb_drag = false
