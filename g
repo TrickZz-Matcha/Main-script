@@ -11,19 +11,17 @@ UILib = {
     _menu_open= false,  -- START CLOSED, F1 opens it
     _menu_key = 'f1',
     _inputs   = {['m1']={id=0x01,h=false,c=false},['m2']={id=0x02,h=false,c=false},['f1']={id=0x70,h=false,c=false},['f2']={id=0x71,h=false,c=false},['f3']={id=0x72,h=false,c=false},['f4']={id=0x73,h=false,c=false},['f5']={id=0x74,h=false,c=false},['f6']={id=0x75,h=false,c=false},['esc']={id=0x1B,h=false,c=false},['lshift']={id=0xA0,h=false,c=false},['rshift']={id=0xA1,h=false,c=false},['up']={id=0x26,h=false,c=false},['down']={id=0x28,h=false,c=false},['left']={id=0x25,h=false,c=false},['right']={id=0x27,h=false,c=false},['unbound']={id=0x08,h=false,c=false},['enter']={id=0x0D,h=false,c=false},['space']={id=0x20,h=false,c=false},['a']={id=0x41,h=false,c=false},['b']={id=0x42,h=false,c=false},['c']={id=0x43,h=false,c=false},['d']={id=0x44,h=false,c=false},['e']={id=0x45,h=false,c=false},['f']={id=0x46,h=false,c=false},['g']={id=0x47,h=false,c=false},['h']={id=0x48,h=false,c=false},['i']={id=0x49,h=false,c=false},['j']={id=0x4A,h=false,c=false},['k']={id=0x4B,h=false,c=false},['l']={id=0x4C,h=false,c=false},['m']={id=0x4D,h=false,c=false},['n']={id=0x4E,h=false,c=false},['o']={id=0x4F,h=false,c=false},['p']={id=0x50,h=false,c=false},['q']={id=0x51,h=false,c=false},['r']={id=0x52,h=false,c=false},['s']={id=0x53,h=false,c=false},['t']={id=0x54,h=false,c=false},['u']={id=0x55,h=false,c=false},['v']={id=0x56,h=false,c=false},['w']={id=0x57,h=false,c=false},['x']={id=0x58,h=false,c=false},['y']={id=0x59,h=false,c=false},['z']={id=0x5A,h=false,c=false},['0']={id=0x30,h=false,c=false},['1']={id=0x31,h=false,c=false},['2']={id=0x32,h=false,c=false},['3']={id=0x33,h=false,c=false},['4']={id=0x34,h=false,c=false},['5']={id=0x35,h=false,c=false},['6']={id=0x36,h=false,c=false},['7']={id=0x37,h=false,c=false},['8']={id=0x38,h=false,c=false},['9']={id=0x39,h=false,c=false},['minus']={id=0xBD,h=false,c=false},['period']={id=0xBE,h=false,c=false},['comma']={id=0xBC,h=false,c=false},['slash']={id=0xBF,h=false,c=false},['semicolon']={id=0xBA,h=false,c=false},['quote']={id=0xDE,h=false,c=false},['lbracket']={id=0xDB,h=false,c=false},['rbracket']={id=0xDD,h=false,c=false},['backslash']={id=0xDC,h=false,c=false}},
-    _drag        = nil,
-    _ctx         = nil,     -- focused input id
-    _search      = '',
-    _scroll      = 0,
-    _scrollT     = 0,
-    _wheelConn   = nil,     -- mouse wheel connection
-    _wheelDelta  = 0,       -- accumulated scroll delta from wheel hook
+    _drag     = nil,
+    _ctx      = nil,     -- focused input id
+    _search   = '',
+    _scroll   = 0,
+    _scrollT  = 0,
     _slider_drag = nil,
-    _dd          = nil,     -- active dropdown
-    _cp          = nil,     -- active colorpicker
-    _copied_color= nil,
-    _notifs      = {},
-    _notif_id    = 0,
+    _dd       = nil,     -- active dropdown
+    _cp       = nil,     -- active colorpicker
+    _copied_color = nil,
+    _notifs   = {},
+    _notif_id = 0,
     -- layout
     title    = 'matcha',
     subtitle = '',
@@ -183,62 +181,6 @@ end
 local function pressed(key) return UILib._inputs[key] and UILib._inputs[key].c end
 local function held(key)    return UILib._inputs[key] and UILib._inputs[key].h end
 
--- ─── MOUSE WHEEL SETUP ───────────────────────────────────────────────────────
--- setrobloxinput(false) blocks UserInputService, so we use the exploit-level
--- mouse scroll hook (mouse1click/mouse2click equivalents for wheel) instead.
--- Most executors expose onmousewheel or a WndProc hook via hookfunction/
--- connectsignal. We try several known APIs in order of preference.
-
-local function setupWheelScroll()
-    if UILib._wheelConn then return end
-
-    -- Method 1: mousescrolled / onmousewheel (Synapse X, KRNL, Fluxus, etc.)
-    if mousescrolled then
-        UILib._wheelConn = mousescrolled:Connect(function(delta)
-            if not UILib._menu_open then return end
-            local tbH=32; local chH=34
-            local cX=UILib.x+UILib._sw+1
-            local cY=UILib.y+tbH+chH
-            local cW=UILib.w-UILib._sw-1
-            local cH=UILib.h-tbH-chH
-            local mp=mouse()
-            if mp.X>=cX and mp.X<=cX+cW and mp.Y>=cY and mp.Y<=cY+cH then
-                UILib._wheelDelta = UILib._wheelDelta - delta * 40
-            end
-        end)
-        return
-    end
-
-    -- Method 2: UIS InputChanged — works if executor does NOT block it via setrobloxinput
-    -- (some executors keep UIS alive even when roblox input is locked)
-    local ok, UIS = pcall(function() return game:GetService('UserInputService') end)
-    if ok and UIS then
-        local conn
-        pcall(function()
-            conn = UIS.InputChanged:Connect(function(input, gp)
-                -- gp (gameProcessed) is false for wheel even when roblox input locked on some executors
-                if input.UserInputType ~= Enum.UserInputType.MouseWheel then return end
-                if not UILib._menu_open then return end
-                local tbH=32; local chH=34
-                local cX=UILib.x+UILib._sw+1
-                local cY=UILib.y+tbH+chH
-                local cW=UILib.w-UILib._sw-1
-                local cH=UILib.h-tbH-chH
-                local mp=mouse()
-                if mp.X>=cX and mp.X<=cX+cW and mp.Y>=cY and mp.Y<=cY+cH then
-                    UILib._wheelDelta = UILib._wheelDelta - input.Position.Z * 40
-                end
-            end)
-        end)
-        if conn then UILib._wheelConn = conn; return end
-    end
-
-    -- Method 3: Fallback polling via iskeypressed VK codes for wheel up/down
-    -- VK 0x0E = WM_MOUSEWHEEL up sim is not standard, but some exploits map:
-    -- We mark _wheelConn as 'fallback' so we don't retry, and handle it in Step()
-    UILib._wheelConn = 'fallback'
-end
-
 -- ─── PUBLIC API ──────────────────────────────────────────────────────────────
 
 function UILib:SetMenuSize(s)   self.w=s.x or self.w; self.h=s.y or self.h end
@@ -265,12 +207,6 @@ function UILib:UpdateFont(f)
 end
 
 function UILib:Unload()
-    -- Disconnect mouse wheel listener
-    if self._wheelConn and self._wheelConn ~= 'fallback' then
-        pcall(function() self._wheelConn:Disconnect() end)
-        self._wheelConn = nil
-    end
-    self._wheelDelta = 0
     removePfx('')
     pcall(setrobloxinput,true)
 end
@@ -433,9 +369,6 @@ end
 function UILib:Step()
     local C=self.C
 
-    -- Setup mouse wheel scroll connection once
-    setupWheelScroll()
-
     -- INPUT (all keys read before setrobloxinput)
     pollInput()
     local click=pressed('m1'); local heldM=held('m1'); local rclick=pressed('m2')
@@ -585,32 +518,37 @@ function UILib:Step()
     txt('m_chtxt', cX+pad+4, cY+10, self._open_tab or '', C.text, 14)
     ln('m_chdiv', cX+6, cY+chH, cX+cW-6, cY+chH, C.div)
 
-    -- ─── SCROLL ──────────────────────────────────────────────────────────────
-    -- Arrow key scrolling
+    -- scroll
     if pressed('up')   then self._scrollT=math.max(0,self._scrollT-35) end
     if pressed('down') then self._scrollT=self._scrollT+35 end
-
-    -- Mouse wheel: consume accumulated delta from the wheel hook
-    if self._wheelDelta ~= 0 then
-        self._scrollT = math.max(0, self._scrollT + self._wheelDelta)
-        self._wheelDelta = 0
+    -- mouse wheel via Mouse.WheelForward / WheelBackward (works even with setrobloxinput blocked)
+    if not self._wheelConn then
+        self._wheelDelta=0
+        local m=game:GetService('Players').LocalPlayer:GetMouse()
+        self._wheelConn=true
+        m.WheelForward:Connect(function()
+            if not UILib._menu_open then return end
+            local cXs=UILib.x+UILib._sw+1; local cYs=UILib.y+32+34
+            local cWs=UILib.w-UILib._sw-1; local cHs=UILib.h-32-34
+            local mp2=game:GetService('Players').LocalPlayer:GetMouse()
+            if mp2.X>=cXs and mp2.X<=cXs+cWs and mp2.Y>=cYs and mp2.Y<=cYs+cHs then
+                UILib._wheelDelta=UILib._wheelDelta-1
+            end
+        end)
+        m.WheelBackward:Connect(function()
+            if not UILib._menu_open then return end
+            local cXs=UILib.x+UILib._sw+1; local cYs=UILib.y+32+34
+            local cWs=UILib.w-UILib._sw-1; local cHs=UILib.h-32-34
+            local mp2=game:GetService('Players').LocalPlayer:GetMouse()
+            if mp2.X>=cXs and mp2.X<=cXs+cWs and mp2.Y>=cYs and mp2.Y<=cYs+cHs then
+                UILib._wheelDelta=UILib._wheelDelta+1
+            end
+        end)
     end
-
-    -- Fallback: if no hook connected, poll via iskeypressed for common
-    -- executor wheel VK mappings (wheel up = 0x0E, wheel down = 0x0F)
-    if self._wheelConn == 'fallback' then
-        local tbH2=32; local chH2=34
-        local cX2=self.x+self._sw+1; local cY2=self.y+tbH2+chH2
-        local cW2=self.w-self._sw-1; local cH2=self.h-tbH2-chH2
-        if hit(cX2,cY2,cW2,cH2) then
-            local wu=false; local wd=false
-            pcall(function() wu=iskeypressed(0x0E) end)
-            pcall(function() wd=iskeypressed(0x0F) end)
-            if wu then self._scrollT=math.max(0,self._scrollT-35) end
-            if wd then self._scrollT=self._scrollT+35 end
-        end
+    if (self._wheelDelta or 0)~=0 then
+        self._scrollT=math.max(0, self._scrollT+self._wheelDelta*40)
+        self._wheelDelta=0
     end
-
     self._scroll=lerp(self._scroll, self._scrollT, 0.2)
 
     -- WIDGETS
