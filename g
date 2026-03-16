@@ -201,8 +201,8 @@ function UILib:Notification(text,time)
 end
 
 function UILib:Unload()
-    for k,o in pairs(UILib._drawings) do pcall(function() o:Remove() end) end
-    UILib._drawings = {}
+    for k,o in pairs(D) do pcall(function() o:Remove() end) end
+    for k in pairs(D) do D[k]=nil end
     pcall(setrobloxinput,true)
 end
 
@@ -419,8 +419,7 @@ function UILib:Step()
 
         for _,sname in ipairs(tabData._sec_order or {}) do
             local sec=tabData._items[sname]
-            if sec ~= nil then
-            local slid='s_'..self._open_tab..'_'..sname
+            if sec ~= nil then local slid='s_'..self._open_tab..'_'..sname
 
             if wY>=clipTop-20 and wY<=clipBot then
                 draw(slid..'_hdr','text',C.sub,10,Vector2.new(wX+2,wY+3),sname:upper(),false,false,10)
@@ -439,12 +438,9 @@ function UILib:Step()
 
                 totalH=totalH+iH+4
 
-                local skipWidget = wY+iH<=clipTop or wY>=clipBot
-                if skipWidget then
+                if wY+iH<=clipTop or wY>=clipBot then
                     undrawPrefix(wid); wY=wY+iH+4
-                end
-                if not skipWidget then
-
+                else
                 local isHov=inBounds(Vector2.new(wX,wY),Vector2.new(wW,iH))
                 local cardCol = isHov and C.cardhov or C.card
                 draw(wid..'_bg', 'rect',cardCol,10,Vector2.new(wX,wY),Vector2.new(wW,iH),true)
@@ -505,7 +501,8 @@ function UILib:Step()
                         if self._slider_drag==wid then
                             local mp=getMouse()
                             local np=slW>0 and clamp((mp.X-slX)/slW,0,1) or 0
-                            local nv=math.floor(((w2.min+(w2.max-w2.min)*np)/w2.step)+0.5)*w2.step
+                            local _step=w2.step~=0 and w2.step or 1
+                            local nv=math.floor(((w2.min+(w2.max-w2.min)*np)/_step)+0.5)*_step
                             nv=clamp(nv,w2.min,w2.max)
                             if nv~=w2.value then w2.value=nv; if w2.cb then w2.cb(nv) end end
                         end
@@ -545,7 +542,7 @@ function UILib:Step()
                         elseif isTyp then self._input_ctx=nil end
                     end
                     if isTyp then
-                        local cm={space=' ',dash='-',period='.',comma=','}
+                        local cm={space=' ',minus='-',period='.',comma=','}
                         local sh=isHeld('lshift') or isHeld('rshift')
                         local sm={['1']='!',['2']='@',['3']='#',['4']='$',['5']='%',['0']=')'}
                         for ch in pairs(self._inputs) do
@@ -578,7 +575,7 @@ function UILib:Step()
                 end
 
                 wY=wY+iH+4
-                end -- if not skipWidget
+                end -- else visible
             end -- for wi,w2
             wY=wY+8; totalH=totalH+8
             end -- if sec ~= nil
@@ -697,6 +694,8 @@ UILib._sb_drag = false
 UILib._menu_drag = nil
 UILib._active_dropdown = nil
 UILib._active_colorpicker = nil
+UILib._menu_key_ready = false
+UILib._input_ctx = nil
 
 _G.UILib = UILib
 return UILib
