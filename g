@@ -429,7 +429,7 @@ function UILib:Step()
     if tabData then
         local wY = cY+chH+pad - math.floor(self._scroll)
         local wX=cX+pad; local wW=cW-pad*2-sbBarW-6  -- shrink widget width to make room for scrollbar
-        local clipTop=cY+chH; local clipBot=cY+cH
+        local clipTop=cY+chH+1; local clipBot=cY+cH
         local totalH=0  -- track total content height for scroll clamping
 
         for _,sname in ipairs(tabData._sec_order or {}) do
@@ -437,7 +437,7 @@ function UILib:Step()
             if not sec then continue end
             local slid='s_'..self._open_tab..'_'..sname
 
-            if wY>=clipTop+18 and wY+18<=clipBot then
+            if wY>=clipTop and wY+18<=clipBot then
                 draw(slid..'_hdr','text',C.sub,10,Vector2.new(wX+2,wY+3),sname:upper(),false,false,10)
             else undraw(slid..'_hdr') end
             wY=wY+18; totalH=totalH+18
