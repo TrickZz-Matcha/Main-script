@@ -437,7 +437,7 @@ function UILib:Step()
                 if wType=='toggle' then
                     local hasCP=w2.cp~=nil
                     if hasCP then
-                        local csz=18; local cx2=wX+wW-csz-6; local cy2=wY+(iH-csz)/2
+                        local csz=18; local cx2=wX+wW-csz-10; local cy2=wY+(iH-csz)/2
                         draw(wid..'_cp',   'rect',w2.cp.value,12,Vector2.new(cx2,cy2),Vector2.new(csz,csz),true)
                         draw(wid..'_cpbdr','rect',C.div,       13,Vector2.new(cx2,cy2),Vector2.new(csz,csz),false)
                         roundedCorners(wid..'_cp',   cx2, cy2, csz, csz, 4, cardCol, 14)
@@ -451,7 +451,7 @@ function UILib:Step()
                             clickFrame=false
                         end
                     end
-                    local tOff=hasCP and (wW-80) or (wW-50)
+                    local tOff=hasCP and (wW-84) or (wW-50)
                     local tX=wX+tOff; local tY2=wY+(iH-18)/2
                     local onC=w2.unsafe and Color3.fromRGB(255,180,0) or C.accent
                     local trkCol=w2.value and onC or C.trkoff
@@ -685,6 +685,14 @@ function UILib:Step()
         end
     end
 end
+
+-- reset scroll on every load so stale state from previous execution does not persist
+UILib._scroll  = 0
+UILib._scrollT = 0
+UILib._sb_drag = false
+UILib._menu_drag = nil
+UILib._active_dropdown = nil
+UILib._active_colorpicker = nil
 
 _G.UILib = UILib
 return UILib
