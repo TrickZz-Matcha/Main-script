@@ -20,6 +20,7 @@ UILib = {
     _menu_drag   = nil,
     _input_ctx   = nil,
     _menu_key    = 'f1',
+    _menu_key_ready = false,
     _active_dropdown    = nil,
     _active_colorpicker = nil,
     _scroll      = 0,
@@ -99,14 +100,17 @@ local function undraw(id)
 end
 
 local function undrawPrefix(p)
+    if p=='' then return end
     for k,o in pairs(D) do
         if k:sub(1,#p)==p then o.Visible=false end
     end
 end
 
 local function removePrefix(p)
-    for k,o in pairs(D) do
-        if k:sub(1,#p)==p then o:Remove(); D[k]=nil end
+    local keys={}
+    for k in pairs(D) do if k:sub(1,#p)==p then keys[#keys+1]=k end end
+    for _,k in ipairs(keys) do
+        pcall(function() D[k]:Remove() end); D[k]=nil
     end
 end
 
@@ -369,7 +373,7 @@ function UILib:Step()
     end
 
     -- PROFILE
-    local pfY=sbY+sbH-38
+    local pfY=math.max(sbY, sbY+sbH-38)
     draw('m_pfbg', 'rect',C.side,  2,Vector2.new(sbX,pfY),       Vector2.new(sw,38),true)
     draw('m_pfav', 'rect',C.accdim,4,Vector2.new(sbX+pad,pfY+7), Vector2.new(24,24),true)
     roundedCorners('m_pfav', sbX+pad, pfY+7, 24, 24, 5, C.side, 5)
@@ -379,6 +383,7 @@ function UILib:Step()
 
     -- CONTENT AREA
     local cX=x+sw+1; local cY=y+tbH; local cW=w-sw-1; local cH=h-tbH
+    if cW<=0 or cH<=0 then return end
     draw('m_ct',   'rect',C.content,2,Vector2.new(cX,cY),Vector2.new(cW,cH),  true)
     local chH=34
     draw('m_chbg', 'rect',C.content,3,Vector2.new(cX,cY),Vector2.new(cW,chH), true)
@@ -454,7 +459,7 @@ function UILib:Step()
                         roundedCorners(wid..'_cp',   cx2, cy2, csz, csz, 4, cardCol, 14)
                         roundedCorners(wid..'_cpbdr',cx2, cy2, csz, csz, 4, cardCol, 15)
                         if clickFrame and inBounds(Vector2.new(cx2,cy2),Vector2.new(csz,csz)) then
-                            local col=w2.cp.value; local h2,s2,v2=rgbToHsv(col.R,col.G,col.B)
+                            local col=w2.cp.value or Color3.new(1,1,1); local h2,s2,v2=rgbToHsv(col.R,col.G,col.B)
                             local ss2=getScreenSize(); local ppx=cX+cW+4
                             if ppx+200>ss2.X then ppx=cX-204 end
                             self._active_colorpicker={x=ppx,y=cY,label=w2.cp.label,h=h2,s=s2,v=v2,
@@ -486,7 +491,7 @@ function UILib:Step()
                     draw(wid..'_trk','rect',C.trkoff,11,Vector2.new(slX,slY2),Vector2.new(slW,4),true)
                     draw(wid..'_trkl','rect',C.content,12,Vector2.new(slX,slY2),Vector2.new(2,4),true)
                     draw(wid..'_trkr','rect',C.content,12,Vector2.new(slX+slW-2,slY2),Vector2.new(2,4),true)
-                    local pct=clamp((w2.value-w2.min)/(w2.max-w2.min),0,1)
+                    local pct=w2.max~=w2.min and clamp((w2.value-w2.min)/(w2.max-w2.min),0,1) or 0
                     if pct>0 then draw(wid..'_fill','rect',C.accent,12,Vector2.new(slX,slY2),Vector2.new(math.max(2,slW*pct),4),true) end
                     local thmX=slX+slW*pct-5; local thmY=slY2-3
                     draw(wid..'_thm','rect',C.white,13,Vector2.new(thmX,thmY),Vector2.new(10,10),true)
@@ -497,7 +502,7 @@ function UILib:Step()
                         end
                         if self._slider_drag==wid then
                             local mp=getMouse()
-                            local np=clamp((mp.X-slX)/slW,0,1)
+                            local np=slW>0 and clamp((mp.X-slX)/slW,0,1) or 0
                             local nv=math.floor(((w2.min+(w2.max-w2.min)*np)/w2.step)+0.5)*w2.step
                             nv=clamp(nv,w2.min,w2.max)
                             if nv~=w2.value then w2.value=nv; if w2.cb then w2.cb(nv) end end
@@ -509,7 +514,7 @@ function UILib:Step()
                     local dBX=wX+10; local dBY=wY+22; local dBW=wW-20; local dBH=18
                     draw(wid..'_box','rect',C.srch,11,Vector2.new(dBX,dBY),Vector2.new(dBW,dBH),true)
                     draw(wid..'_bdr','rect',C.div, 12,Vector2.new(dBX,dBY),Vector2.new(dBW,dBH),false)
-                    local disp=table.concat(w2.value,', '); if #disp==0 then disp='None' end
+                    local disp=(w2.value and #w2.value>0) and table.concat(w2.value,', ') or 'None'
                     draw(wid..'_val','text',C.text,12,Vector2.new(dBX+6,dBY+3),disp,false,false,11)
                     draw(wid..'_arr','text',C.sub, 12,Vector2.new(dBX+dBW-12,dBY+4),'v',false,false,9)
                     if clickFrame and inBounds(Vector2.new(dBX,dBY),Vector2.new(dBW,dBH)) then
@@ -562,7 +567,8 @@ function UILib:Step()
                     roundedCorners(wid..'_sw',  cx2, cy2, csz, csz, 4, cardCol, 14)
                     roundedCorners(wid..'_bdr', cx2, cy2, csz, csz, 4, cardCol, 15)
                     if clickFrame and inBounds(Vector2.new(cx2,cy2),Vector2.new(csz,csz)) then
-                        local h2,s2,v2=rgbToHsv(w2.value.R,w2.value.G,w2.value.B)
+                        local _cv=w2.value or Color3.new(1,1,1)
+                        local h2,s2,v2=rgbToHsv(_cv.R,_cv.G,_cv.B)
                         self._active_colorpicker={x=cX+cW+4,y=cY,label=w2.label,h=h2,s=s2,v=v2,
                             cb=function(c) w2.value=c; if w2.cb then w2.cb(c) end end,_spawned_at=os.clock()}
                         clickFrame=false
