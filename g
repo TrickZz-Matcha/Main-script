@@ -382,7 +382,7 @@ function UILib:Step()
     end
     self._scroll = lerp(self._scroll, self._scrollT, 0.25)
 
-    -- scrollbar constants (used by both widget loop and scrollbar draw)
+    -- scrollbar constants
     local sbW2=8; local sbX2=cX+cW-sbW2-4; local sbY2=cY+chH+6; local sbH2=cH-chH-14
 
     -- WIDGETS
@@ -407,7 +407,7 @@ function UILib:Step()
             if not sec then continue end
             local slid='s_'..self._open_tab..'_'..sname
 
-            if wY>=clipTop and wY<=clipBot then
+            if wY>=clipTop-20 and wY<=clipBot then
                 draw(slid..'_hdr','text',C.sub,10,Vector2.new(wX+2,wY+3),sname:upper(),false,false,10)
             else undraw(slid..'_hdr') end
             wY=wY+18; totalH=totalH+18
@@ -424,8 +424,7 @@ function UILib:Step()
 
                 totalH=totalH+iH+4
 
-                -- skip if fully outside clip zone or partially above header
-                if wY < clipTop or wY+iH <= clipTop or wY >= clipBot then
+                if wY+iH<=clipTop or wY>=clipBot then
                     undrawPrefix(wid); wY=wY+iH+4; continue
                 end
 
@@ -575,18 +574,16 @@ function UILib:Step()
         local visRatio = (cH-chH-pad*2) / ((cH-chH-pad*2) + maxScroll)
         local thumbH = math.max(20, math.floor(sbH2 * visRatio))
         local travelH = math.max(0, sbH2 - thumbH)
-        local thumbPct = maxScroll > 0 and clamp(math.floor(self._scroll)/maxScroll, 0, 1) or 0
-        local thumbY = sbY2 + math.floor(travelH * thumbPct)
-        thumbY = clamp(thumbY, sbY2, sbY2 + travelH)
+        local thumbPct = clamp(math.floor(self._scroll)/math.max(1,maxScroll), 0, 1)
+        local thumbY = clamp(sbY2 + math.floor(travelH * thumbPct), sbY2, sbY2 + travelH)
         local isHovSB = inBounds(Vector2.new(sbX2-4,sbY2),Vector2.new(sbW2+8,sbH2))
-        local thumbCol = (isHovSB or self._sb_drag) and C.accent or C.sub
-        draw('sb_thm','rect',thumbCol,21,Vector2.new(sbX2,thumbY),Vector2.new(sbW2,thumbH),true)
+        draw('sb_thm','rect',(isHovSB or self._sb_drag) and C.accent or C.sub,21,Vector2.new(sbX2,thumbY),Vector2.new(sbW2,thumbH),true)
         if mouseHeld then
             if clickFrame and isHovSB then self._sb_drag=true; clickFrame=false end
             if self._sb_drag then
                 local mp=getMouse()
-                local rel=clamp((mp.Y - sbY2 - thumbH/2) / math.max(1, travelH), 0, 1)
-                self._scrollT = rel * maxScroll
+                local rel=clamp((mp.Y-sbY2-thumbH/2)/math.max(1,travelH),0,1)
+                self._scrollT=rel*maxScroll
             end
         else
             self._sb_drag=false
@@ -595,11 +592,6 @@ function UILib:Step()
         undraw('sb_trk'); undraw('sb_thm')
         self._sb_drag=false
     end
-
-    -- Repaint header over widgets that bleed into it when scrolling
-    draw('m_chbg2','rect',C.content,25,Vector2.new(cX,cY),Vector2.new(cW,chH),true)
-    draw('m_chtxt2','text',C.text,  26,Vector2.new(cX+pad+4,cY+10),self._open_tab or '',false,false,14)
-    draw('m_chdiv2','line',C.div,   26,Vector2.new(cX+6,cY+chH),Vector2.new(cX+cW-6,cY+chH),1)
 
     -- DROPDOWN
     local dd=self._active_dropdown
