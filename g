@@ -419,8 +419,8 @@ function UILib:Step()
 
         for _,sname in ipairs(tabData._sec_order or {}) do
             local sec=tabData._items[sname]
+            if sec ~= nil then
             local slid='s_'..self._open_tab..'_'..sname
-            if sec then
 
             if wY>=clipTop-20 and wY<=clipBot then
                 draw(slid..'_hdr','text',C.sub,10,Vector2.new(wX+2,wY+3),sname:upper(),false,false,10)
@@ -439,9 +439,11 @@ function UILib:Step()
 
                 totalH=totalH+iH+4
 
-                if wY+iH<=clipTop or wY>=clipBot then
+                local skipWidget = wY+iH<=clipTop or wY>=clipBot
+                if skipWidget then
                     undrawPrefix(wid); wY=wY+iH+4
-                else
+                end
+                if not skipWidget then
 
                 local isHov=inBounds(Vector2.new(wX,wY),Vector2.new(wW,iH))
                 local cardCol = isHov and C.cardhov or C.card
@@ -576,11 +578,11 @@ function UILib:Step()
                 end
 
                 wY=wY+iH+4
-                end -- else (visible widget)
-            end
+                end -- if not skipWidget
+            end -- for wi,w2
             wY=wY+8; totalH=totalH+8
-            end -- if sec
-        end
+            end -- if sec ~= nil
+        end -- for sname
 
         maxScroll=math.max(0, totalH-(cH-chH-pad*2))
         self._scrollT=clamp(self._scrollT,0,maxScroll)
