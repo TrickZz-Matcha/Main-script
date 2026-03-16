@@ -382,7 +382,7 @@ function UILib:Step()
     self._scroll = lerp(self._scroll, self._scrollT, 0.25)
 
     -- SCROLLBAR
-    local sbW2=5; local sbX2=cX+cW-sbW2-4; local sbY2=cY+chH+6; local sbH2=cH-chH-12
+    local sbW2=5; local sbX2=cX+cW-sbW2-4; local sbY2=cY+chH+6; local sbH2=cH-chH-14
 
     -- WIDGETS
     local tabData=self._open_tab and self._tree[self._open_tab]
@@ -397,7 +397,7 @@ function UILib:Step()
 
     if tabData then
         local wY = cY+chH+pad - math.floor(self._scroll)
-        local wX=cX+pad; local wW=cW-pad*2-sbW2-8  -- leave room for scrollbar
+        local wX=cX+pad; local wW=cW-pad*2-sbW2-12  -- leave room for scrollbar
         local clipTop=cY+chH; local clipBot=cY+cH
         local totalH=0
 
@@ -576,7 +576,9 @@ function UILib:Step()
         local visRatio = (cH-chH-pad*2) / ((cH-chH-pad*2) + maxScroll)
         local thumbH = math.max(20, math.floor(sbH2 * visRatio))
         local thumbPct = maxScroll > 0 and clamp(math.floor(self._scroll)/maxScroll, 0, 1) or 0
-        local thumbY = sbY2 + math.floor((sbH2 - thumbH) * thumbPct)
+        local travelH = math.max(0, sbH2 - thumbH)
+        local thumbY = sbY2 + math.floor(travelH * thumbPct)
+        thumbY = clamp(thumbY, sbY2, sbY2 + travelH)
         local isHovSB = inBounds(Vector2.new(sbX2-3,sbY2),Vector2.new(sbW2+6,sbH2))
         local thumbCol = (isHovSB or self._sb_drag) and C.accent or C.sub
         draw('m_sbthm','rect',thumbCol,21,Vector2.new(sbX2,thumbY),Vector2.new(sbW2,thumbH),true)
@@ -586,7 +588,7 @@ function UILib:Step()
             if clickFrame and isHovSB then self._sb_drag=true; clickFrame=false end
             if self._sb_drag then
                 local mp=getMouse()
-                local rel=clamp((mp.Y - sbY2 - thumbH/2) / math.max(1, sbH2-thumbH), 0, 1)
+                local rel=clamp((mp.Y - sbY2 - thumbH/2) / math.max(1, travelH), 0, 1)
                 self._scrollT = rel * maxScroll
             end
         else
