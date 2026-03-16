@@ -380,7 +380,11 @@ end
 function UILib:Step()
     local C=self.C
 
-    -- poll input exactly like reference library
+    -- DEBUG: unconditional red bar - if visible, Step is running. Remove once confirmed.
+    sq('_dbg', 4, 4, 200, 18, Color3.fromRGB(200,0,0))
+    txt('_dbg_t', 6, 5, 'Step OK | open='..tostring(self._menu_open), Color3.fromRGB(255,255,255), 12)
+
+    -- poll input
     pollInput()
 
     local click  = kPressed('m1')
