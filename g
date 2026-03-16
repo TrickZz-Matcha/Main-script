@@ -191,7 +191,7 @@ end
 local function pollInput()
     for keycode, data in pairs(UILib._inputs) do
         local id   = data.id
-        local down = isrbxactive() and iskeypressed(id)
+        local down = iskeypressed(id)  -- no isrbxactive() check: executor bypasses it
         if down then
             UILib._inputs[keycode].click = (data.held == false)
             UILib._inputs[keycode].held  = true
@@ -237,7 +237,7 @@ end
 
 function UILib:Unload()
     removePfx('')
-    pcall(setrobloxinput,true)
+    pcall(setrobloxinput, true)
 end
 
 -- ─── TAB / SECTION / WIDGET BUILDER ──────────────────────────────────────────
@@ -382,7 +382,6 @@ function UILib:Step()
 
     -- poll input exactly like reference library
     pollInput()
-    setrobloxinput(not self._menu_open)
 
     local click  = kPressed('m1')
     local heldM  = kHeld('m1')
@@ -392,6 +391,9 @@ function UILib:Step()
     if kPressed(self._menu_key) then
         self._menu_open = not self._menu_open
     end
+
+    -- lock roblox input when menu open (AFTER polling so we don't self-deadlock)
+    pcall(setrobloxinput, not self._menu_open)
 
     -- NOTIFICATIONS
     local nx0,ny0=self.x+self.w+8,self.y; local ntH=0
