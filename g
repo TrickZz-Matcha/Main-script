@@ -91,7 +91,7 @@ local function draw(id, dtype, col, zi, ...)
         local from,to,thickness = ...
         o.From=from; o.To=to; o.Thickness=thickness or 1
     end
-    if o then o.Color=col; o.ZIndex=zi; o.Visible=true end
+    if o then o.Color=col; o.ZIndex=zi; o.Transparency=0; o.Visible=true end
 end
 
 local function undraw(id)
@@ -570,7 +570,7 @@ function UILib:Step()
     -- SCROLLBAR
     if maxScroll > 0 then
         -- track
-        draw('m_sbt','rect',C.trkoff,20,Vector2.new(sbX2,sbY2),Vector2.new(sbW2,sbH2),true)
+        draw('sb_trk','rect',C.trkoff,20,Vector2.new(sbX2,sbY2),Vector2.new(sbW2,sbH2),true)
         -- thumb: height proportional to how much content is visible
         local visRatio = (cH-chH-pad*2) / ((cH-chH-pad*2) + maxScroll)
         local thumbH = math.max(20, math.floor(sbH2 * visRatio))
@@ -580,7 +580,7 @@ function UILib:Step()
         thumbY = clamp(thumbY, sbY2, sbY2 + travelH)
         local isHovSB = inBounds(Vector2.new(sbX2-4,sbY2),Vector2.new(sbW2+8,sbH2))
         local thumbCol = (isHovSB or self._sb_drag) and C.accent or C.sub
-        draw('m_sbthm','rect',thumbCol,21,Vector2.new(sbX2,thumbY),Vector2.new(sbW2,thumbH),true)
+        draw('sb_thm','rect',thumbCol,21,Vector2.new(sbX2,thumbY),Vector2.new(sbW2,thumbH),true)
         -- drag
         if mouseHeld then
             if clickFrame and isHovSB then self._sb_drag=true; clickFrame=false end
@@ -593,7 +593,7 @@ function UILib:Step()
             self._sb_drag=false
         end
     else
-        undraw('m_sbt'); undraw('m_sbthm'); undrawPrefix('m_sbthm_')
+        undraw('sb_trk'); undraw('sb_thm'); undrawPrefix('sb_thm_')
         self._sb_drag=false
     end
 
