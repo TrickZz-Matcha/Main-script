@@ -1,15 +1,136 @@
---[[
- .____                  ________ ___.    _____                           __                
- |    |    __ _______   \_____  \\_ |___/ ____\_ __  ______ ____ _____ _/  |_  ___________ 
- |    |   |  |  \__  \   /   |   \| __ \   __\  |  \/  ___// ___\\__  \\   __\/  _ \_  __ \
- |    |___|  |  // __ \_/    |    \ \_\ \  | |  |  /\___ \\  \___ / __ \|  | (  <_> )  | \/
- |_______ \____/(____  /\_______  /___  /__| |____//____  >\___  >____  /__|  \____/|__|   
-         \/          \/         \/    \/                \/     \/     \/                   
-          \_Welcome to LuaObfuscator.com   (Alpha 0.10.9) ~  Much Love, Ferib 
+-- ╔══════════════════════════════════════════════════════════════╗
+-- ║  Matcha ESP  –  clean stable rewrite                        ║
+-- ║  Design goals:                                              ║
+-- ║  • Zero GetChildren() calls per scan tick (live sets)       ║
+-- ║  • Zero Drawing.new/Remove after startup (slot pools)       ║
+-- ║  • Positions cached – no repeated pcall per frame           ║
+-- ║  • No closures allocated inside hot loops                   ║
+-- ║  • All executor-fragile APIs wrapped in pcall               ║
+-- ╚══════════════════════════════════════════════════════════════╝
 
-]]--
+-- ── SERVICES ──────────────────────────────────────────────────────────────────
+local Players     = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+local RunService  = game:GetService("RunService")
 
-local v0=game:GetService("Players");local v1=game:GetService("HttpService");local v2=game:GetService("RunService");local v3=math.floor;local v4=Vector2.new;local v5=Vector3.new;local v6=table.clear;local v7=v0.LocalPlayer;local v8=getbase();local v9={};local v10=nil;local v11=nil;local v12=v5(0,0,0);local v13=false;ContainerESPEnabled=false;DroppedESPEnabled=false;PlayerInventoryESPEnabled=false;DeadBodyESPEnabled=false;ExitESPEnabled=false;TrapESPEnabled=false;BossESPEnabled=false;ShowItems=false;ShowDistance=false;CameraFOVEnabled=false;ZoomEnabled=false;FFlagActive=false;FPSBoostActive=false;LineTracerEnabled=false;NoFogEnabled=false;FullBrightEnabled=false;FOVAmount=90;ContainerColor=Color3.new(1,1,1);DroppedColor=Color3.new(1,0.78,0.31);PlayerInvColor=Color3.new(1,1,1);DeadBodyColor=Color3.new(1,0.31,0.31);ExitColor=Color3.new(1,0.31,0.31);TrapColor=Color3.new(1,0.19,1);BossColor=Color3.new(1,0.64,0);local v14=22500;local v15=22500;local v16=22500;local v17=250000;local v18=250000;local v19=250000;local v20={cursor=1};local v21=20;local v22,v23=Color3.new(1,1,1),Color3.new(0.8,0.8,0.8);local v24,v25={Color=v22},{Color=v22};local v26,v27={},{};local function v28() end local function v29() end local function v30() end local v31=nil;local v32;task.spawn(function() local v110="https://raw.githubusercontent.com/hitechboi/checkitv2/refs/heads/main/ChildVm.lua?t="   .. tostring(os.time()) ;local v111=pcall(function() loadstring(game:HttpGet(v110))();end);if  not v111 then return;end local v112=os.clock();repeat task.wait(0.05);until _G.ChildVm or ((os.clock() -v112)>12)  v31=_G.ChildVm;if v31 then v31:SetPollRate(0.05);v32();end end);local v33=328;local v34=192 + 36 ;local v35=192 + 40 ;local v36=192 + 44 ;local function v37(v113) local v114,v115=pcall(function() local v314=memory_read("uintptr",v113.Address + v33 );if ( not v314 or (v314==0)) then return nil;end local v315=memory_read("float",v314 + v34 );local v316=memory_read("float",v314 + v35 );local v317=memory_read("float",v314 + v36 );if ( not v315 or  not v316 or  not v317) then return nil;end return v5(v315,v316,v317);end);return (v114 and v115) or nil ;end local function v38(v116) if  not v116 then return nil;end local v117,v118=pcall(function() return v116.CFrame;end);if (v117 and v118) then return v118.Position;end local v119,v120=pcall(function() return v116.Position;end);if (v119 and v120) then return v120;end return v37(v116);end local function v39(v121,v122) local v123,v124,v125=v121.X-v122.X ,v121.Y-v122.Y ,v121.Z-v122.Z ;return (v123 * v123) + (v124 * v124) + (v125 * v125) ;end local v40=[[
+-- ── STDLIB UPVALUES ───────────────────────────────────────────────────────────
+local mfloor = math.floor
+local V2     = Vector2.new
+local V3     = Vector3.new
+local tclear = table.clear
+
+-- ── CORE ──────────────────────────────────────────────────────────────────────
+local LocalPlayer = Players.LocalPlayer
+local Base        = getbase()
+local FFlags      = {}
+local StaticCam   = nil
+
+-- ── SHARED FRAME STATE  (must be at top so all closures below close over them)
+local _RenderCam     = nil
+local _frameMyPos    = V3(0, 0, 0)
+local _frameHRPValid = false
+
+-- ── GLOBALS ───────────────────────────────────────────────────────────────────
+ContainerESPEnabled       = false
+DroppedESPEnabled         = false
+PlayerInventoryESPEnabled = false
+DeadBodyESPEnabled        = false
+ExitESPEnabled            = false
+TrapESPEnabled            = false
+BossESPEnabled            = false
+ShowItems                 = false
+ShowDistance              = false
+CameraFOVEnabled          = false
+ZoomEnabled               = false
+FFlagActive               = false
+FPSBoostActive            = false
+LineTracerEnabled         = false
+NoFogEnabled              = false
+FullBrightEnabled         = false
+FOVAmount                 = 90
+
+ContainerColor = Color3.new(1, 1, 1)
+DroppedColor   = Color3.new(1, 0.78, 0.31)
+PlayerInvColor = Color3.new(1, 1, 1)
+DeadBodyColor  = Color3.new(1, 0.31, 0.31)
+ExitColor      = Color3.new(1, 0.31, 0.31)
+TrapColor      = Color3.new(1, 0.19, 1)
+BossColor      = Color3.new(1, 0.64, 0)
+
+local MAX_DIST_SQ    = 22500
+local DROP_DIST_SQ   = 22500
+local DEAD_DIST_SQ   = 22500
+local EXIT_DIST_SQ   = 250000
+local TRAP_DIST_SQ   = 250000
+local BOSS_DIST_SQ   = 250000
+
+-- ── INVENTORY STUBS ───────────────────────────────────────────────────────────
+local INV_S            = { cursor = 1 }
+local MAX_P            = 20
+local C_ACCENT, C_TEXT = Color3.new(1,1,1), Color3.new(0.8,0.8,0.8)
+local lTit, iTit       = { Color = C_ACCENT }, { Color = C_ACCENT }
+local pTx, pCur        = {}, {}
+local function buildList() end
+local function hideList()  end
+local function hideInv()   end
+
+-- ── CHILDVM ───────────────────────────────────────────────────────────────────
+local CV                   = nil
+local setupCvWatchers      -- forward-declared; defined after descriptors
+
+task.spawn(function()
+    local url = "https://raw.githubusercontent.com/hitechboi/checkitv2/refs/heads/main/ChildVm.lua?t=" .. tostring(os.time())
+    local ok  = pcall(function() loadstring(game:HttpGet(url))() end)
+    if not ok then return end
+    local t0 = os.clock()
+    repeat task.wait(0.05) until _G.ChildVm or (os.clock() - t0) > 12
+    CV = _G.ChildVm
+    if CV then CV:SetPollRate(0.05); setupCvWatchers() end
+end)
+
+-- ── POSITION HELPERS ──────────────────────────────────────────────────────────
+-- CFrame is now fully supported by the executor so we use CFrame.Position
+-- as the primary read. Memory fallback kept for parts that expose Address
+-- but not standard Roblox properties.
+local MEM_PRIM = 0x148
+local MEM_X    = 0xC0 + 0x24
+local MEM_Y    = 0xC0 + 0x28
+local MEM_Z    = 0xC0 + 0x2C
+
+local function readMemPos(part)
+    local ok, r = pcall(function()
+        local prim = memory_read("uintptr", part.Address + MEM_PRIM)
+        if not prim or prim == 0 then return nil end
+        local x = memory_read("float", prim + MEM_X)
+        local y = memory_read("float", prim + MEM_Y)
+        local z = memory_read("float", prim + MEM_Z)
+        if not x or not y or not z then return nil end
+        return V3(x, y, z)
+    end)
+    return ok and r or nil
+end
+
+-- Primary: use CFrame.Position (accurate, no memory offsets needed)
+-- Fallback: .Position property, then raw memory
+local function getPos(part)
+    if not part then return nil end
+    -- CFrame.Position is the most reliable with full CFrame support
+    local ok, cf = pcall(function() return part.CFrame end)
+    if ok and cf then return cf.Position end
+    -- fallback to .Position
+    local ok2, pos = pcall(function() return part.Position end)
+    if ok2 and pos then return pos end
+    -- last resort: memory read
+    return readMemPos(part)
+end
+
+local function dsq(a, b)
+    local dx, dy, dz = a.X-b.X, a.Y-b.Y, a.Z-b.Z
+    return dx*dx + dy*dy + dz*dz
+end
+
+-- ── FFLAGS ────────────────────────────────────────────────────────────────────
+local NetworkFFlagsJson = [[
 {
   "FIntRakNetResendBufferArrayLength":"128","FFlagOptimizeNetwork":"True",
   "FFlagOptimizeNetworkRouting":"True","FFlagOptimizeNetworkTransport":"True",
@@ -32,7 +153,8 @@ local v0=game:GetService("Players");local v1=game:GetService("HttpService");loca
   "DFIntClusterPacketCacheSize":"10000","DFIntCyclicExecutiveThrottledJobSleepTime":"0",
   "DFIntTaskSchedulerTargetFps":"10000","DFIntNumClientsIsNowCSGComputeEnabled":"0"
 }
-]];local v41=[[
+]]
+local FPSBoostFFlagsJson = [[
 {
   "FFlagDebugDisplayFPS":"True","FIntParticleMaxEmitters":"0",
   "FIntRenderShadowIntensity":"0","DFFlagDisableDeferredShadows":"True",
@@ -45,4 +167,1352 @@ local v0=game:GetService("Players");local v1=game:GetService("HttpService");loca
   "FFlagRenderNoLowFidelityBillboardGui":"True","FFlagAdornRenderStatesUseDefault":"True",
   "DFIntMaxFrameBufferSize":"1","FFlagGlobalWindRendering":"False","FFlagGlobalWindActivated":"False"
 }
-]];local v42={{"DFFlag","bool"},{"FFlag","bool"},{"DFInt","int"},{"FInt","int"},{"DFLog","int"},{"FLog","int"},{"DFString","string"},{"FString","string"}};local function v43(v126) local v127={};for v318,v319 in v126:gmatch('"([^"]+)"%s*:%s*"?([^",\n}]+)"?') do v127[v318]=v319:match("^%s*(.-)%s*$");end return v127;end local function v44(v128) for v321=1, #v42 do local v322=v42[v321][1];if (v128:sub(1, #v322)==v322) then return v128:sub( #v322 + 1 );end end return v128;end local function v45(v129,v130) for v323=1, #v42 do local v324,v325=v42[v323][1],v42[v323][2];if (v129:sub(1, #v324)==v324) then if (v325=="bool") then return v325,(v130=="True") or (v130=="true") or (v130=="1") ;elseif (v325=="int") then return v325,tonumber(v130);else return v325,v130;end end end end local function v46(v131) for v326 in v131:gmatch("[^\r\n]+") do local v327,v328=v326:match("uintptr_t%s+([%w_]+)%s*=%s*0x([%x]+)");if (v327 and v328) then v9[v327]=tonumber(v328,16);end end end local function v47(v132,v133,v134) local v135=v9[v132];if  not v135 then return false;end if (v133=="string") then return false;end pcall(function() if (v133=="bool") then memory_write("byte",v8 + v135 ,(v134 and 1) or 0 );elseif (v133=="int") then memory_write("int",v8 + v135 ,v134);end end);return true;end local function v48(v136,v137) local v138=v9[v136];if  not v138 then return nil;end if (v137=="string") then return nil;end local v139,v140=pcall(function() if (v137=="bool") then return memory_read("byte",v8 + v138 )==1 ;elseif (v137=="int") then return memory_read("int",v8 + v138 );end end);return (v139 and v140) or nil ;end do local v141,v142=pcall(function() return game:HttpGet("https://offsets.ntgetwritewatch.workers.dev/FFlags.hpp");end);if (v141 and v142) then v46(v142);end end local v49,v50={},{};local function v51(v143,v144,v145) local v146=0;for v329,v330 in pairs(v43(v143)) do local v331=v44(v329);local v332,v333=v45(v329,v330);if (v332 and (v333~=nil)) then if  not v144[v331] then local v654=v48(v331,v332);if (v654~=nil) then v144[v331]={Type=v332,Value=v654};end end if v47(v331,v332,v333) then v146=v146 + 1 ;end end end notify("Applied "   .. v146   .. " "   .. v145   .. " FFlags" ,"Matcha",3);end local function v52(v147,v148) local v149=0;for v334,v335 in pairs(v147) do if v47(v334,v335.Type,v335.Value) then v149=v149 + 1 ;end end v6(v147);notify("Reverted "   .. v149   .. " "   .. v148   .. " FFlags" ,"Matcha",3);end function ApplyFFlags() v51(v40,v49,"Network");end function RevertFFlags() v52(v49,"Network");end function ApplyFPSBoost() local v150,v151=pcall(v51,v41,v50,"FPS");if  not v150 then notify("FPS Error: "   .. tostring(v151) ,"Matcha",5);end end function RevertFPSBoost() local v152,v153=pcall(v52,v50,"FPS");if  not v152 then notify("FPS Revert Error: "   .. tostring(v153) ,"Matcha",5);end end local v53=Drawing.Fonts.System;local function v54(v154) v53=FontMap[v154] or Drawing.Fonts.System ;end local v55,v56,v57,v58;local v59={};local v60={};local v61={};local v62=4;local v63={container=5,dropped=5,dead=5,exit=3,boss=7};local function v64(v155,v156) local v157={};for v336=1,v155 do local v337=Drawing.new("Text");v337.Outline=true;v337.Center=true;v337.Visible=false;v337.Font=v53;v337.Size=14;v337.Text="";v337.Color=Color3.new(1,1,1);local v345=Drawing.new("Line");v345.Thickness=1;v345.Visible=false;v345.Color=Color3.new(1,1,1);local v349=nil;if v156 then v349={};for v622=1,v62 do local v623=Drawing.new("Text");v623.Outline=true;v623.Center=true;v623.Visible=false;v623.Font=v53;v623.Size=11;v623.Text="";v623.Color=Color3.new(1,1,1);v349[v622]=v623;end end v157[v336]={lbl=v337,tr=v345,sub=v349,addr=nil,part=nil,name=nil,cvConn=nil};end return v157;end local v65={container=v64(v63.container,true),dropped=v64(v63.dropped,false),dead=v64(v63.dead,false),exit=v64(v63.exit,false),boss=v64(v63.boss,false)};local function v66(v158,v159) for v351=1, #v158 do if  not v158[v351].addr then v158[v351].addr=v159;return v158[v351];end end end local function v67(v160) if  not v160 then return;end if v160.cvConn then pcall(function() v160.cvConn:Disconnect();end);v160.cvConn=nil;end v160.addr=nil;v160.part=nil;v160.name=nil;v160.lbl.Visible=false;v160.tr.Visible=false;if v160.sub then for v563=1,v62 do v160.sub[v563].Visible=false;end end end local function v68(v166) return v166:FindFirstChildOfClass("BasePart") or v166:FindFirstChildWhichIsA("BasePart") ;end local function v69(v167) for v352,v353 in ipairs(v167:GetDescendants()) do if v353:IsA("BasePart") then return v353;end end end local function v70(v168) for v354,v355 in ipairs(v168:GetChildren()) do local v356=v355.ClassName;if ((v356=="MeshPart") or (v356=="Part") or (v356=="UnionOperation")) then if v38(v355) then return v355;end end end local v169,v170=nil,0;for v357,v358 in ipairs(v168:GetDescendants()) do if v358:IsA("BasePart") then local v565,v566=pcall(function() return v358.Size;end);if (v565 and v566) then local v655=v566.X * v566.Y * v566.Z ;if (v655>v170) then v170=v655;v169=v358;end elseif  not v169 then v169=v358;end end end return v169;end local function v71(v171) local v172=v171.a2s;local v173=v171.pool;if  not v171.on then for v567,v568 in pairs(v172) do v67(v568);v60[v567]=nil;v59[v567]=nil;v61[v567]=nil;end v6(v172);v171.cache[1]={};return;end local v174;if v13 then v174=v12;else local v505=v7.Character;local v506=v505 and v505:FindFirstChild("HumanoidRootPart") ;if  not v506 then return;end v174=v506.Position;end local v175=v171.distSq;local v176=v175 * 1.69 ;local v177=v175 * 2.25 ;local v178=v171.getCol;local v179=v171.getPart;local v180=v171.isStatic;local v181=v171.getObjs();local v182=v171._nearby;local v183=v171._newList;local v184=0;for v359=1, #v181 do local v360=v181[v359];local v361=v360 and v360.Address ;if  not v361 then continue;end local v362=v61[v361];if (v362 and (v39(v362,v174)>v176)) then continue;end local v363=v172[v361];local v364=v363 and v363.part ;if v364 then local v572,v573=pcall(function() return v364.Parent;end);if ( not v572 or  not v573) then v67(v363);v172[v361]=nil;v363=nil;v364=nil;v61[v361]=nil;v59[v361]=nil;end end if  not v364 then v364=v179(v360);if  not v364 then continue;end end local v365=v362;if  not v365 then v365=v38(v364);if  not v365 then continue;end v61[v361]=v365;end if (v39(v365,v174)>v176) then continue;end if (v184>=v171.max) then continue;end v182[v361]=true;v184=v184 + 1 ;v183[v184]=v360;if  not v363 then v363=v66(v173,v361);if v363 then v363.part=v364;v363.name=v360.Name;local v662=v178();v363.lbl.Color=v662;v363.tr.Color=v662;if v363.sub then for v744=1,v62 do v363.sub[v744].Color=v662;end end v172[v361]=v363;if (v31 and  not v180) then v363.cvConn=v31:OnCFrameChanged(v364,function(v746) v61[v361]=v5(v746.X,v746.Y,v746.Z);end);end end end if (v171.withInv and v363) then local v575=v360:FindFirstChild("Inventory");if v575 then local v666=v575:GetChildren();local v667=v60[v361];if ( not v667 or ( #v667~= #v666)) then local v730={};for v748=1, #v666 do v730[v748]=v666[v748].Name;end v60[v361]=v730;end if (v31 and  not v363.invWatched) then v363.invWatched=true;local function v733() local v751=v575:GetChildren();local v752={};for v761=1, #v751 do v752[v761]=v751[v761].Name;end v60[v361]=v752;end v31:OnChildAdded(v575,function() v733();end);v31:OnChildRemoved(v575,function() v733();end);end else v60[v361]=nil;end end end for v368,v369 in pairs(v172) do if  not v182[v368] then local v576=v61[v368] or (v369.part and v38(v369.part)) ;if ( not v576 or (v39(v576,v174)>v177)) then v67(v369);v172[v368]=nil;v60[v368]=nil;if  not v180 then v61[v368]=nil;end end end end local v185=v171.cache[1];local v186=0;for v370=1,v184 do local v371=v183[v370];local v372=v371 and v371.Address ;if (v372 and v172[v372]) then v186=v186 + 1 ;v185[v186]=v371;end end for v373=v186 + 1 , #v185 do v185[v373]=nil;end for v375=1,v184 do v183[v375]=nil;end for v377 in pairs(v182) do v182[v377]=nil;end end local function v72(v187) local v188=v187.a2s;if ( not v187.on or  not v13 or  not v11) then for v578,v579 in pairs(v188) do v579.lbl.Visible=false;v579.tr.Visible=false;if v579.sub then for v709=1,v62 do v579.sub[v709].Visible=false;end end end return;end local v189=WorldToScreen;if  not v189 then return;end local v190=v12;local v191=v187.distSq;local v192=v187.getCol();local v193=v53;local v194=v187.cache[1];local v195= #v194;local v196=ShowDistance;local v197=v187.withInv and ShowItems ;local v198=LineTracerEnabled;local v199=v187.isStatic;local v200=v11.ViewportSize.X * 0.5 ;local v201=v187._clean;local v202=0;for v379=1,v195 do local v380=v194[v379];local v381=v380 and v380.Address ;if  not v381 then continue;end local v382=v188[v381];if  not v382 then continue;end local v383=v382.lbl;local v384=v382.tr;local v385=v382.sub;local v386=v61[v381];if ( not v386 or ( not v199 and  not v382.cvConn)) then local v582,v583=pcall(function() return v382.part.Position;end);if (v582 and v583) then v386=v583;v61[v381]=v583;elseif  not v386 then v383.Visible=false;v384.Visible=false;if v385 then for v764=1,v62 do v385[v764].Visible=false;end end v202=v202 + 1 ;v201[v202]=v380;continue;end end local v387=v39(v386,v190);if (v387>v191) then v383.Visible=false;v384.Visible=false;if v385 then for v711=1,v62 do v385[v711].Visible=false;end end v202=v202 + 1 ;v201[v202]=v380;continue;end local v388,v389=v189(v386);if  not v389 then v383.Visible=false;v384.Visible=false;if v385 then for v713=1,v62 do v385[v713].Visible=false;end end v202=v202 + 1 ;v201[v202]=v380;continue;end v202=v202 + 1 ;v201[v202]=v380;local v391=v388.X;local v392=v388.Y-20 ;local v393=(v196 and (v382.name   .. " ["   .. v3(v387^0.5 )   .. "m]")) or v382.name ;if (v383.Color~=v192) then v383.Color=v192;end if (v383.Font~=v193) then v383.Font=v193;end if (v383.Text~=v393) then v383.Text=v393;end v383.Position=v4(v391,v392);v383.Visible=true;if v198 then v384.From=v4(v200,0);v384.To=v4(v391,v392);if (v384.Color~=v192) then v384.Color=v192;end v384.Visible=true;else v384.Visible=false;end if v385 then if v197 then local v673=v60[v381] or {} ;local v674= #v673;for v715=1,v62 do local v716=v385[v715];if (v715<=v674) then local v754="- "   .. v673[v715] ;if (v716.Text~=v754) then v716.Text=v754;end if (v716.Color~=v192) then v716.Color=v192;end if (v716.Font~=v193) then v716.Font=v193;end v716.Position=v4(v391,v392 + (v715 * 16) );v716.Visible=true;else v716.Visible=false;end end else for v717=1,v62 do v385[v717].Visible=false;end end end end local v203=v187.cache[1];for v396=1,v202 do v203[v396]=v201[v396];end for v399=v202 + 1 ,v195 do v203[v399]=nil;end for v401=1,v202 do v201[v401]=nil;end end local v73={};local v74={};local v75={};local v76={};local v77={};local v78={};local v79={};local v80={};local v81={};local v82={};local function v83(v204,v205,v206) local v207=v206 and v206.Address ;if ( not v207 or v205[v207]) then return;end local v208= #v204 + 1 ;v204[v208]=v206;v205[v207]=v208;end local function v84(v211,v212,v213) local v214=v213 and v213.Address ;if  not v214 then return;end local v215=v212[v214];if  not v215 then return;end local v216= #v211;if (v215~=v216) then local v508=v211[v216];v211[v215]=v508;v212[v508.Address]=v215;end v211[v216]=nil;v212[v214]=nil;end local function v85(v219,v220) pcall(function() v219:Connect(v220);end);end local function v86(v221,v222,v223) if v31 then v31:OnChildAdded(v221,v222);v31:OnChildRemoved(v221,v223);else v85(v221.ChildAdded,v222);v85(v221.ChildRemoved,v223);end end local function v87() for v403,v404 in ipairs(v55:GetChildren()) do v83(v73,v74,v404);end v86(v55,function(v405) v83(v73,v74,v405);end,function(v406) v84(v73,v74,v406);end);for v407,v408 in ipairs(v56:GetChildren()) do v83(v75,v76,v408);if (v408:IsA("Model") and (v408~=v7.Character)) then local v597=v408:FindFirstChildOfClass("Humanoid");if v597 then local v675=0;pcall(function() v675=v597.Health;end);if (v675<=0) then v83(v77,v78,v408);end end end end v86(v56,function(v409) v83(v75,v76,v409);if (v409:IsA("Model") and (v409~=v7.Character)) then local v598=v409:FindFirstChildOfClass("Humanoid");if v598 then local v676=0;pcall(function() v676=v598.Health;end);if (v676<=0) then v83(v77,v78,v409);end end end end,function(v410) v84(v75,v76,v410);v84(v77,v78,v410);end);for v411,v412 in ipairs(v57:GetChildren()) do v83(v79,v80,v412);end v86(v57,function(v413) v83(v79,v80,v413);end,function(v414) v84(v79,v80,v414);end);for v415,v416 in ipairs(v58:GetChildren()) do for v511,v512 in ipairs(v416:GetChildren()) do if (v512:IsA("Model") and (v512:FindFirstChildOfClass("Humanoid") or v512:FindFirstChildWhichIsA("Humanoid"))) then v83(v81,v82,v512);end end v86(v416,function(v513) if (v513:IsA("Model") and (v513:FindFirstChildOfClass("Humanoid") or v513:FindFirstChildWhichIsA("Humanoid"))) then v83(v81,v82,v513);end end,function(v514) v84(v81,v82,v514);end);end v86(v58,function(v417) v86(v417,function(v515) if (v515:IsA("Model") and (v515:FindFirstChildOfClass("Humanoid") or v515:FindFirstChildWhichIsA("Humanoid"))) then v83(v81,v82,v515);end end,function(v516) v84(v81,v82,v516);end);end,function() end);end local v88={a2s={},pool=v65.container,cache={{}},on=false,withInv=true,isStatic=true,max=v63.container,distSq=v14,_nearby={},_newList={},_clean={},getCol=function() return ContainerColor;end,getObjs=function() return v73;end,getPart=function(v224) local v225=v224.Address;local v226=v59[v225];if (v226==false) then return nil;end if v226 then return v226;end local v227=v70(v224);v59[v225]=v227 or false ;return v227;end};local v89={a2s={},pool=v65.dropped,cache={{}},on=false,withInv=false,isStatic=false,max=v63.dropped,distSq=v15,_nearby={},_newList={},_clean={},getCol=function() return DroppedColor;end,getObjs=function() return v75;end,getPart=function(v229) if v229:FindFirstChildOfClass("Humanoid") then return nil;end return v68(v229) or v69(v229) ;end};local v90={a2s={},pool=v65.dead,cache={{}},on=false,withInv=false,isStatic=false,max=v63.dead,distSq=v16,_nearby={},_newList={},_clean={},getCol=function() return DeadBodyColor;end,getObjs=function() return v77;end,getPart=function(v230) return v230:FindFirstChild("HumanoidRootPart") or v68(v230) or v69(v230) ;end};local v91={a2s={},pool=v65.exit,cache={{}},on=false,withInv=false,isStatic=true,max=v63.exit,distSq=v17,_nearby={},_newList={},_clean={},getCol=function() return ExitColor;end,getObjs=function() return v79;end,getPart=function(v231) local v232=v231:FindFirstChild("Hint");if  not v232 then return nil;end return v232:FindFirstChildOfClass("BasePart") or v232:FindFirstChildWhichIsA("BasePart") ;end};local v92={a2s={},pool=v65.boss,cache={{}},on=false,withInv=false,isStatic=false,max=v63.boss,distSq=v19,_nearby={},_newList={},_clean={},getCol=function() return BossColor;end,getObjs=function() return v81;end,getPart=function(v233) return v233:FindFirstChild("HumanoidRootPart") or v68(v233) or v69(v233) ;end};local v93={v88,v89,v90,v91,v92};local function v94(v234) local v235=v234.pool;for v418=1, #v235 do local v419=v235[v418];v419.lbl.Visible=false;v419.tr.Visible=false;if v419.sub then for v632=1,v62 do v419.sub[v632].Visible=false;end end if v419.addr then v67(v419);end end v6(v234.a2s);local v236=v234.cache[1];for v422=1, #v236 do v236[v422]=nil;end local v237=v234._clean;for v424=1, #v237 do v237[v424]=nil;end end local function v95(v238) ContainerESPEnabled=v238;v88.on=v238;if  not v238 then v94(v88);else v6(v61);v71(v88);end end local function v96(v240) DroppedESPEnabled=v240;v89.on=v240;if  not v240 then v94(v89);else v71(v89);end end local function v97(v242) DeadBodyESPEnabled=v242;v90.on=v242;if  not v242 then v94(v90);else v71(v90);end end local function v98(v244) ExitESPEnabled=v244;v91.on=v244;if  not v244 then v94(v91);else v71(v91);end end local function v99(v246) BossESPEnabled=v246;v92.on=v246;if  not v246 then v94(v92);else v71(v92);end end local function v100(v248,v249,v250,v251,v252,v253) if v249[v250] then return;end local v254=v66(v248,v250);if  not v254 then return;end v254.part=v251;v254.name=v252;v254.lbl.Color=v253;v254.tr.Color=v253;if v254.sub then for v599=1,v62 do v254.sub[v599].Color=v253;end end v249[v250]=v254;end local function v101(v260,v261) if  not v261 then return;end v67(v260[v261]);v260[v261]=nil;v60[v261]=nil;v59[v261]=nil;v61[v261]=nil;end function v32() if  not v31 then return;end v31:OnChildAdded(v55,function(v426) v83(v73,v74,v426);if  not ContainerESPEnabled then return;end local v427=v426 and v426.Address ;if  not v427 then return;end local v428=v88.getPart(v426);if v428 then local v601=v66(v65.container,v427);if v601 then v601.part=v428;v601.name=v426.Name;v601.lbl.Color=ContainerColor;v601.tr.Color=ContainerColor;if v601.sub then for v758=1,v62 do v601.sub[v758].Color=ContainerColor;end end v88.a2s[v427]=v601;end end end);v31:OnChildRemoved(v55,function(v429) v84(v73,v74,v429);v101(v88.a2s,v429 and v429.Address );end);v31:OnChildAdded(v56,function(v430) v83(v75,v76,v430);if (v430:IsA("Model") and (v430~=v7.Character)) then local v602=v430:FindFirstChildOfClass("Humanoid");if v602 then local v683=0;pcall(function() v683=v602.Health;end);if (v683<=0) then v83(v77,v78,v430);end v31:OnPropertyChanged(v602,"Health",function(v722) if ((v722 or 0)<=0) then v83(v77,v78,v430);end end);end end if  not DroppedESPEnabled then return;end local v431=v430 and v430.Address ;if  not v431 then return;end if (v430:FindFirstChildOfClass("Humanoid") or v430:FindFirstChildWhichIsA("Humanoid")) then return;end local v432=v68(v430);if v432 then local v603=v66(v65.dropped,v431);if v603 then v603.part=v432;v603.name=v430.Name;v603.lbl.Color=DroppedColor;v603.tr.Color=DroppedColor;v603.cvConn=v31:OnCFrameChanged(v432,function(v723) v61[v431]=v5(v723.X,v723.Y,v723.Z);end);v89.a2s[v431]=v603;end end end);v31:OnChildRemoved(v56,function(v433) v84(v75,v76,v433);v84(v77,v78,v433);v101(v89.a2s,v433 and v433.Address );v101(v90.a2s,v433 and v433.Address );end);v31:OnChildAdded(v57,function(v434) v83(v79,v80,v434);if  not ExitESPEnabled then return;end local v435=v434 and v434.Address ;if  not v435 then return;end local v436=v434:FindFirstChild("Hint");if  not v436 then return;end local v437=v436:FindFirstChildOfClass("BasePart") or v436:FindFirstChildWhichIsA("BasePart") ;if v437 then local v604=v66(v65.exit,v435);if v604 then v604.part=v437;v604.name=v434.Name;v604.lbl.Color=ExitColor;v604.tr.Color=ExitColor;v91.a2s[v435]=v604;end end end);v31:OnChildRemoved(v57,function(v438) v84(v79,v80,v438);v101(v91.a2s,v438 and v438.Address );end);for v439,v440 in ipairs(v58:GetChildren()) do for v517,v518 in ipairs(v440:GetChildren()) do if v518:IsA("Model") then local v634=v518:FindFirstChildOfClass("Humanoid");if v634 then v31:OnPropertyChanged(v634,"Health",function(v738) if ((v738 or 0)<=0) then v84(v81,v82,v518);v101(v92.a2s,v518.Address);end end);end end end v31:OnChildAdded(v440,function(v519) if  not v519:IsA("Model") then return;end local v520=v519:FindFirstChildOfClass("Humanoid") or v519:FindFirstChildWhichIsA("Humanoid") ;if v520 then v83(v81,v82,v519);v31:OnPropertyChanged(v520,"Health",function(v697) if ((v697 or 0)<=0) then v84(v81,v82,v519);v101(v92.a2s,v519.Address);end end);end end);v31:OnChildRemoved(v440,function(v521) v84(v81,v82,v521);v101(v92.a2s,v521 and v521.Address );end);end end v55=workspace:WaitForChild("Containers");v56=workspace:WaitForChild("DroppedItems");v57=workspace:WaitForChild("NoCollision"):WaitForChild("ExitLocations");v58=workspace:WaitForChild("AiZones");v87();v11=workspace.CurrentCamera;v10=v11;local v103=0;local v104={2,0.5,0.5,1,0.3};local v105={0,0,0,0,0};local v106={v88,v89,v90,v91,v92};local v107={function() return ContainerESPEnabled;end,function() return DroppedESPEnabled;end,function() return DeadBodyESPEnabled;end,function() return ExitESPEnabled;end,function() return BossESPEnabled;end};local v108={function() v88.distSq=v14;end,function() v89.distSq=v15;end,function() v90.distSq=v16;end,function() v91.distSq=v17;end,function() v92.distSq=v19;end};v2.Heartbeat:Connect(function(v271) for v441=1,5 do v105[v441]=v105[v441] + v271 ;if (v105[v441]>=v104[v441]) then v105[v441]=0;v108[v441]();if v107[v441]() then v71(v106[v441]);end end end end);local v109=90;v2.RenderStepped:Connect(function() local v272=workspace.CurrentCamera;if v272 then v11=v272;v10=v272;end if v272 then if ZoomEnabled then if (v272.FieldOfView~=10) then v272.FieldOfView=10;end elseif CameraFOVEnabled then if (v272.FieldOfView~=FOVAmount) then v272.FieldOfView=FOVAmount;end end end local v273=v7.Character;local v274=v273 and v273:FindFirstChild("HumanoidRootPart") ;if v274 then v12=v274.Position;v13=true;else v13=false;end if  not v11 then return;end if ContainerESPEnabled then v72(v88);end if DroppedESPEnabled then v72(v89);end if DeadBodyESPEnabled then v72(v90);end if ExitESPEnabled then v72(v91);end if BossESPEnabled then v72(v92);end end);UI.AddTab("Project Delta",function(v275) local v276=v275:Section("Containers","Left");v276:Toggle("container_esp","Container ESP",false,function(v443) v95(v443);if v443 then v71(v88);end end);local v277=v276:Keybind("kb_container_esp",0,"toggle");v277:AddToHotkey("Container ESP","container_esp");v276:Button("Reset",60,20,function() v277:SetKey(0);end);v276:ColorPicker("container_color",1,1,1,1,function(v444) ContainerColor=v444;for v523,v524 in pairs(v88.a2s) do v524.lbl.Color=v444;v524.tr.Color=v444;if v524.sub then for v698=1,v62 do v524.sub[v698].Color=v444;end end end end);v276:Toggle("show_items","Show Items",false,function(v445) ShowItems=v445;end);v276:Toggle("show_distance","Show Distance",false,function(v446) ShowDistance=v446;end);v276:SliderInt("container_dist","Max Distance",50,300,150,function(v447) v14=v447 * v447 ;end);local v278=v275:Section("Dropped Items","Left");v278:Toggle("dropped_esp","Dropped Item ESP",false,function(v448) v96(v448);end);local v279=v278:Keybind("kb_dropped_esp",0,"toggle");v279:AddToHotkey("Dropped Item ESP","dropped_esp");v278:Button("Reset",60,20,function() v279:SetKey(0);end);v278:ColorPicker("dropped_color",1,0.78,0.31,1,function(v449) DroppedColor=v449;for v527,v528 in pairs(v89.a2s) do v528.lbl.Color=v449;v528.tr.Color=v449;end end);v278:SliderInt("dropped_dist","Max Distance",50,300,150,function(v450) v15=v450 * v450 ;end);local v280=v275:Section("Traps","Left");v280:Toggle("trap_esp","Trap ESP",false,function(v451) TrapESPEnabled=v451;end);local v281=v280:Keybind("kb_trap_esp",0,"toggle");v281:AddToHotkey("Trap ESP","trap_esp");v280:Button("Reset",60,20,function() v281:SetKey(0);end);v280:ColorPicker("trap_color",1,0.19,1,1,function(v452) TrapColor=v452;end);v280:SliderInt("trap_dist","Max Distance",50,1000,500,function(v453) v18=v453 * v453 ;end);local v282=v275:Section("Camera","Left");v282:Toggle("cam_fov_on","Custom FOV",false,function(v454) CameraFOVEnabled=v454;if v10 then v10.FieldOfView=(v454 and FOVAmount) or 90 ;end end);local v283=v282:Keybind("kb_cam_fov",0,"toggle");v283:AddToHotkey("Custom FOV","cam_fov_on");v282:Button("Reset",60,20,function() v283:SetKey(0);end);v282:SliderInt("cam_fov_amt","FOV Amount",60,120,90,function(v455) FOVAmount=tonumber(v455);if v10 then v10.FieldOfView=FOVAmount;end end);v282:Toggle("zoom_on","Zoom",false,function(v456) ZoomEnabled=v456;if v10 then if v456 then v10.FieldOfView=10;elseif CameraFOVEnabled then v10.FieldOfView=FOVAmount;else v10.FieldOfView=90;end end end);local v284=v282:Keybind("kb_zoom",0,"toggle");v284:AddToHotkey("Zoom","zoom_on");v282:Button("Reset",60,20,function() v284:SetKey(0);end);local v285=v275:Section("Appearance","Left");v285:Combo("esp_font","ESP Font",{"System","SystemBold"},0,function(v457,v458) v54(v458);end);v285:Toggle("line_tracer","Line Tracer",false,function(v459) LineTracerEnabled=v459;if  not v459 then for v635,v636 in ipairs(v93) do for v701,v702 in pairs(v636.a2s) do v702.tr.Visible=false;end end end end);local v286=v275:Section("Players","Right");v286:Toggle("player_inv_esp","Player Inventory Checker",false,function(v460) PlayerInventoryESPEnabled=v460;if v460 then v20.cursor=1;v28();else v29();v30();end end);local v287=v286:Keybind("kb_player_inv_esp",0,"toggle");v287:AddToHotkey("Player Inventory Checker","player_inv_esp");v286:Button("Reset",60,20,function() v287:SetKey(0);end);v286:ColorPicker("player_inv_color",1,1,1,1,function(v461) PlayerInvColor=v461;v22=v461;v24.Color=v461;v25.Color=v461;for v531=1,v21 do if v26[v531] then v26[v531].Color=((v20.cursor==v531) and v461) or v23 ;end if v27[v531] then v27[v531].Color=v461;end end end);local v288=v275:Section("Dead Bodies","Right");v288:Toggle("dead_body_esp","Dead Body ESP",false,function(v464) v97(v464);end);local v289=v288:Keybind("kb_dead_body_esp",0,"toggle");v289:AddToHotkey("Dead Body ESP","dead_body_esp");v288:Button("Reset",60,20,function() v289:SetKey(0);end);v288:ColorPicker("dead_body_color",1,0.31,0.31,1,function(v465) DeadBodyColor=v465;for v532,v533 in pairs(v90.a2s) do v533.lbl.Color=v465;v533.tr.Color=v465;end end);v288:SliderInt("dead_body_dist","Max Distance",50,300,150,function(v466) v16=v466 * v466 ;end);local v290=v275:Section("Exits","Right");v290:Toggle("exit_esp","Exit ESP",false,function(v467) v98(v467);end);local v291=v290:Keybind("kb_exit_esp",0,"toggle");v291:AddToHotkey("Exit ESP","exit_esp");v290:Button("Reset",60,20,function() v291:SetKey(0);end);v290:ColorPicker("exit_color",1,0.31,0.31,1,function(v468) ExitColor=v468;for v536,v537 in pairs(v91.a2s) do v537.lbl.Color=v468;v537.tr.Color=v468;end end);v290:SliderInt("exit_dist","Max Distance",50,1000,500,function(v469) v17=v469 * v469 ;end);local v292=v275:Section("Bosses","Right");v292:Toggle("boss_esp","Boss ESP",false,function(v470) v99(v470);end);local v293=v292:Keybind("kb_boss_esp",0,"toggle");v293:AddToHotkey("Boss ESP","boss_esp");v292:Button("Reset",60,20,function() v293:SetKey(0);end);v292:ColorPicker("boss_color",1,0.64,0,1,function(v471) BossColor=v471;for v540,v541 in pairs(v92.a2s) do v541.lbl.Color=v471;v541.tr.Color=v471;end end);v292:SliderInt("boss_dist","Max Distance",50,1000,500,function(v472) v19=v472 * v472 ;end);local v294=false;local v295=0;local v296=0;local v297={};local v298=nil;local function v299() local v473,v474=pcall(function() return game.ReplicatedStorage:FindFirstChild("Players"):FindFirstChild(v7.Name):FindFirstChild("Status"):FindFirstChild("GameplayVariables"):FindFirstChild("EquippedTool").Value;end);return (v473 and v474 and (v474~="") and v474) or nil ;end local v300=208;local function v301(v475,v476) pcall(function() memory_write("double",v475.Address + v300 ,v476);end);end local function v302(v477) local v478,v479=pcall(function() return v477.Value;end);return (v478 and (type(v479)=="number") and v479) or nil ;end local function v303(v480,v481) if  not v480 then return;end for v544,v545 in ipairs(v480:GetChildren()) do if (v545.ClassName=="BoolValue") then for v704,v705 in ipairs(v545:GetChildren()) do if (v705.ClassName=="NumberValue") then v481(v705);end end end end end local v304={"RecoilPattern","RecoilPattern2"};local function v305(v482) if ( not v294 or  not v482) then return;end local v483=game.ReplicatedStorage.RangedWeapons:FindFirstChild(v482);if  not v483 then return;end for v546,v547 in ipairs(v304) do local v548=v483:FindFirstChild(v547);if  not v548 then continue;end local v549=v482   .. "_"   .. v547 ;if  not v297[v549] then local v639={};v303(v548,function(v706) local v707=v302(v706);if (v707~=nil) then v639[v706.Name]=v707;end end);v297[v549]=v639;end v303(v548,function(v609) local v610=v609.Name;if (v610=="x") then v301(v609,v295);elseif (v610=="y") then v301(v609,v296);end end);end end local function v306(v484) if  not v484 then return;end local v485=game.ReplicatedStorage.RangedWeapons:FindFirstChild(v484);if  not v485 then return;end for v550,v551 in ipairs(v304) do local v552=v485:FindFirstChild(v551);if  not v552 then continue;end local v553=v484   .. "_"   .. v551 ;local v554=v297[v553];if  not v554 then continue;end v303(v552,function(v611) local v612=v554[v611.Name];if (v612~=nil) then v301(v611,v612);end end);v297[v553]=nil;end end local v307=v275:Section("Weapon Recoil","Right");v307:Toggle("recoil_on","No Recoil",false,function(v486) v294=v486;if v486 then local v613=v299();v298=v613;v305(v613);else for v641 in pairs(v297) do v306(v641);end v298=nil;end end);v307:SliderInt("recoil_x","Horizontal Recoil (X)",0,100,0,function(v487) v295=(v487/100) * 0.3 ;if v294 then v305(v299());end end);v307:SliderInt("recoil_y","Vertical Recoil (Y)",0,100,0,function(v488) v296=(v488/100) * 0.3 ;if v294 then v305(v299());end end);task.spawn(function() while true do task.wait(0.25);if  not v294 then continue;end local v556=v299();if (v556~=v298) then v298=v556;v305(v556);end end end);local v308=v275:Section("Optimizations","Right");v308:Toggle("fflags_enabled","Network FFlags",false,function(v489) FFlagActive=v489;if v489 then ApplyFFlags();else RevertFFlags();end end);v308:Toggle("fps_boost","FPS Boost",false,function(v490) FPSBoostActive=v490;if v490 then ApplyFPSBoost();else RevertFPSBoost();end end);v308:Toggle("no_fog","No Fog",false,function(v491) NoFogEnabled=v491;pcall(function() if v491 then game.Lighting.Atmosphere.Haze=0;game.Lighting.Atmosphere.Density=0;else game.Lighting.Atmosphere.Haze=1;game.Lighting.Atmosphere.Density=0.3;end end);end);v308:Toggle("full_bright","Full Bright",false,function(v492) FullBrightEnabled=v492;pcall(function() if v492 then game.Lighting.Brightness=10;game.Lighting.Ambient=Color3.new(1,1,1);game.Lighting.OutdoorAmbient=Color3.new(1,1,1);else game.Lighting.Brightness=2;game.Lighting.Ambient=Color3.fromRGB(25,25,25);game.Lighting.OutdoorAmbient=Color3.fromRGB(128,128,128);end end);end);local v309=v275:Section("Config","Right");local function v310() return {ContainerESP=ContainerESPEnabled,DroppedESP=DroppedESPEnabled,PlayerInvESP=PlayerInventoryESPEnabled,DeadBodyESP=DeadBodyESPEnabled,ExitESP=ExitESPEnabled,TrapESP=TrapESPEnabled,BossESP=BossESPEnabled,ShowDistance=ShowDistance,ShowItems=ShowItems,CameraFOV=CameraFOVEnabled,FOVAmount=FOVAmount,Zoom=ZoomEnabled,LineTracer=LineTracerEnabled,NoFog=NoFogEnabled,FullBright=FullBrightEnabled,MaxDistSq=v14,DroppedDistSq=v15,DeadBodyDistSq=v16,ExitDistSq=v17,TrapDistSq=v18,BossDistSq=v19,NetworkFFlags=FFlagActive,FPSBoost=FPSBoostActive,CCR=ContainerColor.R,CCG=ContainerColor.G,CCB=ContainerColor.B,DCR=DroppedColor.R,DCG=DroppedColor.G,DCB=DroppedColor.B,PCR=PlayerInvColor.R,PCG=PlayerInvColor.G,PCB=PlayerInvColor.B,BCR=DeadBodyColor.R,BCG=DeadBodyColor.G,BCB=DeadBodyColor.B,ECR=ExitColor.R,ECG=ExitColor.G,ECB=ExitColor.B,TCR=TrapColor.R,TCG=TrapColor.G,TCB=TrapColor.B,BSCR=BossColor.R,BSCG=BossColor.G,BSCB=BossColor.B,KB_Container=v277:GetKey(),KB_Dropped=v279:GetKey(),KB_CamFOV=v283:GetKey(),KB_Zoom=v284:GetKey(),KB_PlayerInv=v287:GetKey(),KB_DeadBody=v289:GetKey(),KB_Exit=v291:GetKey(),KB_Trap=v281:GetKey(),KB_Boss=v293:GetKey()};end v309:Button("Save Config",function() pcall(function() writefile("matcha_config.json",v1:JSONEncode(v310()));end);end);v309:Button("Load Config",function() if  not isfile("matcha_config.json") then return;end local v493,v494=pcall(function() return v1:JSONDecode(readfile("matcha_config.json"));end);if ( not v493 or  not v494) then return;end v95(v494.ContainerESP or false );v96(v494.DroppedESP or false );v97(v494.DeadBodyESP or false );v98(v494.ExitESP or false );TrapESPEnabled=v494.TrapESP or false ;v99(v494.BossESP or false );ShowDistance=v494.ShowDistance or false ;ShowItems=v494.ShowItems or false ;CameraFOVEnabled=v494.CameraFOV or false ;FOVAmount=v494.FOVAmount or 90 ;ZoomEnabled=v494.Zoom or false ;FFlagActive=v494.NetworkFFlags or false ;FPSBoostActive=v494.FPSBoost or false ;LineTracerEnabled=v494.LineTracer or false ;NoFogEnabled=v494.NoFog or false ;FullBrightEnabled=v494.FullBright or false ;v14=v494.MaxDistSq or 22500 ;v15=v494.DroppedDistSq or 22500 ;v16=v494.DeadBodyDistSq or 22500 ;v17=v494.ExitDistSq or 250000 ;v18=v494.TrapDistSq or 250000 ;v19=v494.BossDistSq or 250000 ;if v494.CCR then ContainerColor=Color3.new(v494.CCR,v494.CCG,v494.CCB);end if v494.DCR then DroppedColor=Color3.new(v494.DCR,v494.DCG,v494.DCB);end if v494.BCR then DeadBodyColor=Color3.new(v494.BCR,v494.BCG,v494.BCB);end if v494.ECR then ExitColor=Color3.new(v494.ECR,v494.ECG,v494.ECB);end if v494.TCR then TrapColor=Color3.new(v494.TCR,v494.TCG,v494.TCB);end if v494.BSCR then BossColor=Color3.new(v494.BSCR,v494.BSCG,v494.BSCB);end if v494.PCR then PlayerInvColor=Color3.new(v494.PCR,v494.PCG,v494.PCB);v22=PlayerInvColor;v24.Color=v22;v25.Color=v22;for v652=1,v21 do if v26[v652] then v26[v652].Color=((v20.cursor==v652) and v22) or v23 ;end if v27[v652] then v27[v652].Color=v22;end end end if v494.KB_Container then v277:SetKey(v494.KB_Container);end if v494.KB_Dropped then v279:SetKey(v494.KB_Dropped);end if v494.KB_CamFOV then v283:SetKey(v494.KB_CamFOV);end if v494.KB_Zoom then v284:SetKey(v494.KB_Zoom);end if v494.KB_PlayerInv then v287:SetKey(v494.KB_PlayerInv);end if v494.KB_DeadBody then v289:SetKey(v494.KB_DeadBody);end if v494.KB_Exit then v291:SetKey(v494.KB_Exit);end if v494.KB_Trap then v281:SetKey(v494.KB_Trap);end if v494.KB_Boss then v293:SetKey(v494.KB_Boss);end local v495=PlayerInventoryESPEnabled;PlayerInventoryESPEnabled=v494.PlayerInvESP or false ;if (PlayerInventoryESPEnabled and  not v495) then v20.cursor=1;v28();elseif ( not PlayerInventoryESPEnabled and v495) then v29();v30();end if FFlagActive then ApplyFFlags();else RevertFFlags();end if FPSBoostActive then ApplyFPSBoost();else RevertFPSBoost();end if ContainerESPEnabled then v71(v88);end local function v496(v557) return v3(v557^0.5 );end UI.SetValue("container_esp",ContainerESPEnabled);UI.SetValue("show_items",ShowItems);UI.SetValue("show_distance",ShowDistance);UI.SetValue("container_dist",v496(v14));UI.SetValue("dropped_esp",DroppedESPEnabled);UI.SetValue("dropped_dist",v496(v15));UI.SetValue("player_inv_esp",PlayerInventoryESPEnabled);UI.SetValue("dead_body_esp",DeadBodyESPEnabled);UI.SetValue("dead_body_dist",v496(v16));UI.SetValue("exit_esp",ExitESPEnabled);UI.SetValue("exit_dist",v496(v17));UI.SetValue("trap_esp",TrapESPEnabled);UI.SetValue("trap_dist",v496(v18));UI.SetValue("boss_esp",BossESPEnabled);UI.SetValue("boss_dist",v496(v19));UI.SetValue("cam_fov_on",CameraFOVEnabled);UI.SetValue("cam_fov_amt",FOVAmount);UI.SetValue("zoom_on",ZoomEnabled);UI.SetValue("fflags_enabled",FFlagActive);UI.SetValue("fps_boost",FPSBoostActive);UI.SetValue("no_fog",NoFogEnabled);UI.SetValue("full_bright",FullBrightEnabled);UI.SetValue("line_tracer",LineTracerEnabled);end);local v311={{kb=v277,id="container_esp",get=function() return ContainerESPEnabled;end,set=function(v497) v95(v497);if v497 then v71(v88);end end},{kb=v279,id="dropped_esp",get=function() return DroppedESPEnabled;end,set=v96},{kb=v281,id="trap_esp",get=function() return TrapESPEnabled;end,set=function(v498) TrapESPEnabled=v498;end},{kb=v289,id="dead_body_esp",get=function() return DeadBodyESPEnabled;end,set=v97},{kb=v291,id="exit_esp",get=function() return ExitESPEnabled;end,set=v98},{kb=v293,id="boss_esp",get=function() return BossESPEnabled;end,set=v99},{kb=v283,id="cam_fov_on",get=function() return CameraFOVEnabled;end,set=function(v499) CameraFOVEnabled=v499;if v10 then v10.FieldOfView=(v499 and FOVAmount) or 90 ;end end},{kb=v284,id="zoom_on",get=function() return ZoomEnabled;end,set=function(v500) ZoomEnabled=v500;if v10 then if v500 then v10.FieldOfView=10;elseif CameraFOVEnabled then v10.FieldOfView=FOVAmount;else v10.FieldOfView=90;end end end},{kb=v287,id="player_inv_esp",get=function() return PlayerInventoryESPEnabled;end,set=function(v501) PlayerInventoryESPEnabled=v501;if v501 then v20.cursor=1;v28();else v29();v30();end end}};local v312={};local function v313() v6(v312);for v558,v559 in ipairs(v311) do if (v559.kb:GetKey()~=0) then v312[ #v312 + 1 ]=v559;end end end v313();task.spawn(function() local v502=0;while true do task.wait(0.1);v502=v502-1 ;if (v502<=0) then v313();v502=20;end local v560= #v312;if (v560==0) then continue;end for v619=1,v560 do local v620=v312[v619];local v621=v620.kb:IsEnabled();if (v621~=v620.get()) then v620.set(v621);UI.SetValue(v620.id,v621);end end end end);end);
+]]
+
+local PREFIXES = {
+    {"DFFlag","bool"},{"FFlag","bool"},{"DFInt","int"},{"FInt","int"},
+    {"DFLog","int"},{"FLog","int"},{"DFString","string"},{"FString","string"},
+}
+local function parseJson(s)
+    local t={}; for k,v in s:gmatch('"([^"]+)"%s*:%s*"?([^",\n}]+)"?') do t[k]=v:match("^%s*(.-)%s*$") end; return t
+end
+local function stripPfx(n)
+    for i=1,#PREFIXES do local p=PREFIXES[i][1]; if n:sub(1,#p)==p then return n:sub(#p+1) end end; return n
+end
+local function typeVal(n,v)
+    for i=1,#PREFIXES do local p,t=PREFIXES[i][1],PREFIXES[i][2]
+        if n:sub(1,#p)==p then
+            if t=="bool" then return t,(v=="True"or v=="true"or v=="1")
+            elseif t=="int" then return t,tonumber(v) else return t,v end
+        end
+    end
+end
+local function parseFFlags(d)
+    for line in d:gmatch("[^\r\n]+") do
+        local n,off=line:match("uintptr_t%s+([%w_]+)%s*=%s*0x([%x]+)")
+        if n and off then FFlags[n]=tonumber(off,16) end
+    end
+end
+local function setFF(n,t,v)
+    local a=FFlags[n]; if not a then return false end
+    if t=="string" then return false end  -- string memory_write signature differs, skip
+    pcall(function()
+        if t=="bool" then memory_write("byte",Base+a,v and 1 or 0)
+        elseif t=="int" then memory_write("int",Base+a,v) end
+    end); return true
+end
+local function getFF(n,t)
+    local a=FFlags[n]; if not a then return nil end
+    if t=="string" then return nil end
+    local ok,r=pcall(function()
+        if t=="bool" then return memory_read("byte",Base+a)==1
+        elseif t=="int" then return memory_read("int",Base+a) end
+    end); return ok and r or nil
+end
+do local ok,r=pcall(function() return game:HttpGet("https://offsets.ntgetwritewatch.workers.dev/FFlags.hpp") end)
+   if ok and r then parseFFlags(r) end end
+
+local netOrig, fpsOrig = {}, {}
+local function applyFS(json,orig,tag)
+    local n=0
+    for full,val in pairs(parseJson(json)) do
+        local name=stripPfx(full); local typ,pv=typeVal(full,val)
+        if typ and pv~=nil then
+            if not orig[name] then local ov=getFF(name,typ); if ov~=nil then orig[name]={Type=typ,Value=ov} end end
+            if setFF(name,typ,pv) then n=n+1 end
+        end
+    end
+    notify("Applied "..n.." "..tag.." FFlags","Matcha",3)
+end
+local function revertFS(orig,tag)
+    local n=0; for name,d in pairs(orig) do if setFF(name,d.Type,d.Value) then n=n+1 end end
+    tclear(orig); notify("Reverted "..n.." "..tag.." FFlags","Matcha",3)
+end
+function ApplyFFlags()   applyFS(NetworkFFlagsJson,netOrig,"Network") end
+function RevertFFlags()  revertFS(netOrig,"Network") end
+function ApplyFPSBoost()
+    local ok,err=pcall(applyFS,FPSBoostFFlagsJson,fpsOrig,"FPS")
+    if not ok then notify("FPS Error: "..tostring(err),"Matcha",5) end
+end
+function RevertFPSBoost()
+    local ok,err=pcall(revertFS,fpsOrig,"FPS")
+    if not ok then notify("FPS Revert Error: "..tostring(err),"Matcha",5) end
+end
+
+-- ── DRAWING ───────────────────────────────────────────────────────────────────
+local CurrentFont = Drawing.Fonts.System
+local function setEspFont(name) CurrentFont = FontMap[name] or Drawing.Fonts.System end
+
+-- ── WORKSPACE REFS ────────────────────────────────────────────────────────────
+local WS_Containers, WS_Dropped, WS_Exits, WS_AiZones
+
+-- ── CACHES ────────────────────────────────────────────────────────────────────
+local partCache = {}   -- addr -> part|false
+local invCache  = {}   -- addr -> {itemName,...}
+local posCache  = {}   -- addr -> Vector3  (written by scan, read by update)
+
+-- ── SLOT POOL ─────────────────────────────────────────────────────────────────
+-- All Drawing objects created ONCE. Never Drawing.new/Remove again.
+local MAX_SUB = 4
+local BUDGETS = { container=5, dropped=5, dead=5, exit=3, boss=7 }
+
+local function makePool(n, withSub)
+    local pool = {}
+    for i = 1, n do
+        local lbl = Drawing.new("Text")
+        lbl.Outline=true; lbl.Center=true; lbl.Visible=false
+        lbl.Font=CurrentFont; lbl.Size=14; lbl.Text=""; lbl.Color=Color3.new(1,1,1)
+        local tr = Drawing.new("Line")
+        tr.Thickness=1; tr.Visible=false; tr.Color=Color3.new(1,1,1)
+        local sub = nil
+        if withSub then
+            sub = {}
+            for j = 1, MAX_SUB do
+                local s = Drawing.new("Text")
+                s.Outline=true; s.Center=true; s.Visible=false
+                s.Font=CurrentFont; s.Size=11; s.Text=""; s.Color=Color3.new(1,1,1)
+                sub[j] = s
+            end
+        end
+        pool[i] = { lbl=lbl, tr=tr, sub=sub, addr=nil, part=nil, name=nil, cvConn=nil }
+    end
+    return pool
+end
+
+local POOLS = {
+    container = makePool(BUDGETS.container, true),
+    dropped   = makePool(BUDGETS.dropped,  false),
+    dead      = makePool(BUDGETS.dead,     false),
+    exit      = makePool(BUDGETS.exit,     false),
+    boss      = makePool(BUDGETS.boss,     false),
+}
+
+local function claimSlot(pool, addr)
+    for i = 1, #pool do
+        if not pool[i].addr then pool[i].addr=addr; return pool[i] end
+    end
+end
+
+local function freeSlot(slot)
+    if not slot then return end
+    -- disconnect CV position watcher if one was set up
+    if slot.cvConn then
+        pcall(function() slot.cvConn:Disconnect() end)
+        slot.cvConn = nil
+    end
+    slot.addr=nil; slot.part=nil; slot.name=nil
+    slot.lbl.Visible=false; slot.tr.Visible=false
+    if slot.sub then for j=1,MAX_SUB do slot.sub[j].Visible=false end end
+end
+
+-- ── PART FINDERS ──────────────────────────────────────────────────────────────
+local function findBase(obj)
+    return obj:FindFirstChildOfClass("BasePart") or obj:FindFirstChildWhichIsA("BasePart")
+end
+local function findDescBase(obj)
+    for _,v in ipairs(obj:GetDescendants()) do if v:IsA("BasePart") then return v end end
+end
+local function findBest(obj)
+    for _,v in ipairs(obj:GetChildren()) do
+        local c=v.ClassName
+        if c=="MeshPart" or c=="Part" or c=="UnionOperation" then
+            if getPos(v) then return v end
+        end
+    end
+    local best,bestVol=nil,0
+    for _,v in ipairs(obj:GetDescendants()) do
+        if v:IsA("BasePart") then
+            local ok,sz=pcall(function() return v.Size end)
+            if ok and sz then
+                local vol=sz.X*sz.Y*sz.Z
+                if vol>bestVol then bestVol=vol; best=v end
+            elseif not best then best=v end
+        end
+    end
+    return best
+end
+
+-- ── SCAN ──────────────────────────────────────────────────────────────────────
+local function doScan(cfg)
+    local a2s  = cfg.a2s
+    local pool = cfg.pool
+
+    if not cfg.on then
+        for addr, slot in pairs(a2s) do
+            freeSlot(slot)
+            invCache[addr]=nil; partCache[addr]=nil; posCache[addr]=nil
+        end
+        tclear(a2s); cfg.cache[1]={}; return
+    end
+
+    local myPos
+    if _frameHRPValid then
+        myPos = _frameMyPos
+    else
+        local char = LocalPlayer.Character
+        local hrp  = char and char:FindFirstChild("HumanoidRootPart")
+        if not hrp then return end
+        myPos = hrp.Position
+    end
+
+    local lim      = cfg.distSq
+    local scanLim  = lim * 1.69
+    local remLim   = lim * 2.25
+    local getCol   = cfg.getCol
+    local getPart  = cfg.getPart
+    local isStatic = cfg.isStatic
+
+    local objs    = cfg.getObjs()
+    -- reuse pre-allocated scratch tables — zero allocation per call
+    local nearby  = cfg._nearby
+    local newList = cfg._newList
+    local newN    = 0
+
+    for i = 1, #objs do
+        local obj  = objs[i]
+        local addr = obj and obj.Address
+        if not addr then continue end
+
+        local cp = posCache[addr]
+        if cp and dsq(cp, myPos) > scanLim then continue end
+
+        local slot = a2s[addr]
+        local part = slot and slot.part
+
+        -- validate cached part still alive
+        if part then
+            local ok, par = pcall(function() return part.Parent end)
+            if not ok or not par then
+                freeSlot(slot); a2s[addr]=nil; slot=nil; part=nil
+                posCache[addr]=nil; partCache[addr]=nil
+            end
+        end
+
+        if not part then
+            part = getPart(obj)
+            if not part then continue end
+        end
+
+        local pos = cp
+        if not pos then
+            pos = getPos(part)
+            if not pos then continue end
+            posCache[addr] = pos
+        end
+
+        if dsq(pos, myPos) > scanLim then continue end
+        if newN >= cfg.max then continue end
+
+        nearby[addr] = true
+        newN = newN+1; newList[newN] = obj
+
+        if not slot then
+            slot = claimSlot(pool, addr)
+            if slot then
+                slot.part=part; slot.name=obj.Name
+                local col=getCol()
+                slot.lbl.Color=col; slot.tr.Color=col
+                if slot.sub then for j=1,MAX_SUB do slot.sub[j].Color=col end end
+                a2s[addr]=slot
+
+                if CV and not isStatic then
+                    slot.cvConn = CV:OnCFrameChanged(part, function(new)
+                        posCache[addr] = V3(new.X, new.Y, new.Z)
+                    end)
+                end
+            end
+        end
+
+        if cfg.withInv and slot then
+            local inv = obj:FindFirstChild("Inventory")
+            if inv then
+                local ch = inv:GetChildren()
+                local ex = invCache[addr]
+                if not ex or #ex~=#ch then
+                    local t={}; for j=1,#ch do t[j]=ch[j].Name end
+                    invCache[addr]=t
+                end
+                if CV and not slot.invWatched then
+                    slot.invWatched = true
+                    local function refreshInv()
+                        local c=inv:GetChildren()
+                        local t={}; for j=1,#c do t[j]=c[j].Name end
+                        invCache[addr]=t
+                    end
+                    CV:OnChildAdded(inv,   function() refreshInv() end)
+                    CV:OnChildRemoved(inv, function() refreshInv() end)
+                end
+            else invCache[addr]=nil end
+        end
+    end
+
+    -- release out-of-range — also wipe used nearby entries for next call
+    for addr, slot in pairs(a2s) do
+        if not nearby[addr] then
+            local pos = posCache[addr] or (slot.part and getPos(slot.part))
+            if not pos or dsq(pos, myPos) > remLim then
+                freeSlot(slot); a2s[addr]=nil; invCache[addr]=nil
+                if not isStatic then posCache[addr]=nil end
+            end
+        end
+    end
+
+    -- build safe cache into a persistent table on cfg
+    local safe  = cfg.cache[1]
+    local safeN = 0
+    for i = 1, newN do
+        local obj=newList[i]; local addr=obj and obj.Address
+        if addr and a2s[addr] then safeN=safeN+1; safe[safeN]=obj end
+    end
+    -- truncate to exact length
+    for i = safeN+1, #safe do safe[i]=nil end
+    -- wipe scratch tables for next call
+    for i = 1, newN do newList[i]=nil end
+    for k in pairs(nearby) do nearby[k]=nil end
+end
+
+-- ── UPDATE (render) ───────────────────────────────────────────────────────────
+local function doUpdate(cfg)
+    local a2s = cfg.a2s
+
+    if not cfg.on or not _frameHRPValid or not _RenderCam then
+        for _,slot in pairs(a2s) do
+            slot.lbl.Visible=false; slot.tr.Visible=false
+            if slot.sub then for j=1,MAX_SUB do slot.sub[j].Visible=false end end
+        end
+        return
+    end
+
+    local wts = WorldToScreen
+    if not wts then return end
+
+    local myPos    = _frameMyPos
+    local lim      = cfg.distSq
+    local col      = cfg.getCol()
+    local font     = CurrentFont
+    local cache    = cfg.cache[1]
+    local cacheN   = #cache
+    local showD    = ShowDistance
+    local showI    = cfg.withInv and ShowItems
+    local doTr     = LineTracerEnabled
+    local isStatic = cfg.isStatic
+    local cx       = _RenderCam.ViewportSize.X * 0.5
+
+    -- reuse pre-allocated clean table — wipe at end
+    local clean  = cfg._clean
+    local cleanN = 0
+
+    for i = 1, cacheN do
+        local obj  = cache[i]
+        local addr = obj and obj.Address
+        if not addr then continue end
+
+        local slot = a2s[addr]
+        if not slot then continue end
+
+        local lbl = slot.lbl
+        local tr  = slot.tr
+        local sub = slot.sub
+
+        -- get position — no alive check needed; if part is gone getPos returns nil
+        -- and we skip gracefully without releasing (scan will clean it up)
+        local p = posCache[addr]
+        if not p or (not isStatic and not slot.cvConn) then
+            local ok, pos = pcall(function() return slot.part.Position end)
+            if ok and pos then
+                p = pos; posCache[addr] = pos
+            elseif not p then
+                lbl.Visible=false; tr.Visible=false
+                if sub then for j=1,MAX_SUB do sub[j].Visible=false end end
+                cleanN=cleanN+1; clean[cleanN]=obj
+                continue
+            end
+        end
+
+        local d = dsq(p, myPos)
+        if d > lim then
+            lbl.Visible=false; tr.Visible=false
+            if sub then for j=1,MAX_SUB do sub[j].Visible=false end end
+            cleanN=cleanN+1; clean[cleanN]=obj; continue
+        end
+
+        local sp, onScreen = wts(p)
+        if not onScreen then
+            lbl.Visible=false; tr.Visible=false
+            if sub then for j=1,MAX_SUB do sub[j].Visible=false end end
+            cleanN=cleanN+1; clean[cleanN]=obj; continue
+        end
+
+        cleanN=cleanN+1; clean[cleanN]=obj
+
+        local sx  = sp.X
+        local sy  = sp.Y - 20
+        local txt = showD and (slot.name.." ["..mfloor(d^0.5).."m]") or slot.name
+
+        if lbl.Color~=col  then lbl.Color=col  end
+        if lbl.Font~=font  then lbl.Font=font  end
+        if lbl.Text~=txt   then lbl.Text=txt   end
+        lbl.Position = V2(sx, sy)
+        lbl.Visible  = true
+
+        if doTr then
+            tr.From=V2(cx,0); tr.To=V2(sx,sy)
+            if tr.Color~=col then tr.Color=col end
+            tr.Visible=true
+        else
+            tr.Visible=false
+        end
+
+        if sub then
+            if showI then
+                local inv=invCache[addr] or {}; local invN=#inv
+                for j=1,MAX_SUB do
+                    local s=sub[j]
+                    if j<=invN then
+                        local t2="- "..inv[j]
+                        if s.Text~=t2   then s.Text=t2   end
+                        if s.Color~=col then s.Color=col end
+                        if s.Font~=font then s.Font=font end
+                        s.Position=V2(sx, sy+j*16); s.Visible=true
+                    else s.Visible=false end
+                end
+            else
+                for j=1,MAX_SUB do sub[j].Visible=false end
+            end
+        end
+    end
+
+    -- copy clean back into cache, truncate extra entries
+    local cacheOut = cfg.cache[1]
+    for i = 1, cleanN do cacheOut[i] = clean[i] end
+    for i = cleanN+1, cacheN do cacheOut[i] = nil end
+    -- wipe scratch table for next frame
+    for i = 1, cleanN do clean[i] = nil end
+end
+
+-- ── LIVE SETS ─────────────────────────────────────────────────────────────────
+-- Populated once at startup, kept in sync by events.
+-- getObjs() returns the table reference directly — zero allocation per tick.
+local liveCont    = {}; local liveContIdx = {}
+local liveDrop    = {}; local liveDropIdx = {}
+local liveDead    = {}; local liveDeadIdx = {}
+local liveExits   = {}; local liveExitsIdx = {}
+local liveBoss    = {}; local liveBossIdx  = {}
+
+local function liveAdd(arr, idx, obj)
+    local addr = obj and obj.Address
+    if not addr or idx[addr] then return end
+    local n = #arr+1; arr[n]=obj; idx[addr]=n
+end
+local function liveRem(arr, idx, obj)
+    local addr = obj and obj.Address; if not addr then return end
+    local pos = idx[addr]; if not pos then return end
+    local last = #arr
+    if pos~=last then
+        local m=arr[last]; arr[pos]=m; idx[m.Address]=pos
+    end
+    arr[last]=nil; idx[addr]=nil
+end
+
+local function safeConnect(sig, fn)
+    pcall(function() sig:Connect(fn) end)
+end
+
+-- wire(parent, addFn, remFn) — uses CV if loaded, safeConnect otherwise
+local function wire(parent, addFn, remFn)
+    if CV then
+        CV:OnChildAdded(parent,   addFn)
+        CV:OnChildRemoved(parent, remFn)
+    else
+        safeConnect(parent.ChildAdded,   addFn)
+        safeConnect(parent.ChildRemoved, remFn)
+    end
+end
+
+local function wireAll()
+    -- Containers (static)
+    for _,obj in ipairs(WS_Containers:GetChildren()) do liveAdd(liveCont, liveContIdx, obj) end
+    wire(WS_Containers,
+        function(obj) liveAdd(liveCont, liveContIdx, obj) end,
+        function(obj) liveRem(liveCont, liveContIdx, obj) end)
+
+    -- DroppedItems (items + corpses)
+    for _,obj in ipairs(WS_Dropped:GetChildren()) do
+        liveAdd(liveDrop, liveDropIdx, obj)
+        if obj:IsA("Model") and obj~=LocalPlayer.Character then
+            local hum = obj:FindFirstChildOfClass("Humanoid")
+            if hum then local hp=0; pcall(function() hp=hum.Health end)
+                if hp<=0 then liveAdd(liveDead, liveDeadIdx, obj) end
+            end
+        end
+    end
+    wire(WS_Dropped,
+        function(obj)
+            liveAdd(liveDrop, liveDropIdx, obj)
+            if obj:IsA("Model") and obj~=LocalPlayer.Character then
+                local hum = obj:FindFirstChildOfClass("Humanoid")
+                if hum then local hp=0; pcall(function() hp=hum.Health end)
+                    if hp<=0 then liveAdd(liveDead, liveDeadIdx, obj) end
+                end
+            end
+        end,
+        function(obj)
+            liveRem(liveDrop, liveDropIdx, obj)
+            liveRem(liveDead, liveDeadIdx, obj)
+        end)
+
+    -- Exits (static)
+    for _,obj in ipairs(WS_Exits:GetChildren()) do liveAdd(liveExits, liveExitsIdx, obj) end
+    wire(WS_Exits,
+        function(obj) liveAdd(liveExits, liveExitsIdx, obj) end,
+        function(obj) liveRem(liveExits, liveExitsIdx, obj) end)
+
+    -- Bosses (nested: AiZones > Zone > Model)
+    for _,zone in ipairs(WS_AiZones:GetChildren()) do
+        for _,obj in ipairs(zone:GetChildren()) do
+            if obj:IsA("Model") and
+               (obj:FindFirstChildOfClass("Humanoid") or obj:FindFirstChildWhichIsA("Humanoid")) then
+                liveAdd(liveBoss, liveBossIdx, obj)
+            end
+        end
+        wire(zone,
+            function(obj)
+                if obj:IsA("Model") and
+                   (obj:FindFirstChildOfClass("Humanoid") or obj:FindFirstChildWhichIsA("Humanoid")) then
+                    liveAdd(liveBoss, liveBossIdx, obj)
+                end
+            end,
+            function(obj) liveRem(liveBoss, liveBossIdx, obj) end)
+    end
+    -- also watch for new AiZone folders being added
+    wire(WS_AiZones,
+        function(zone)
+            wire(zone,
+                function(obj)
+                    if obj:IsA("Model") and
+                       (obj:FindFirstChildOfClass("Humanoid") or obj:FindFirstChildWhichIsA("Humanoid")) then
+                        liveAdd(liveBoss, liveBossIdx, obj)
+                    end
+                end,
+                function(obj) liveRem(liveBoss, liveBossIdx, obj) end)
+        end,
+        function() end)
+end
+
+-- ── ESP DESCRIPTORS ───────────────────────────────────────────────────────────
+local ContainerCfg = {
+    a2s={}, pool=POOLS.container, cache={{}}, on=false, withInv=true, isStatic=true,
+    max=BUDGETS.container, distSq=MAX_DIST_SQ,
+    -- pre-allocated scratch tables reused every scan/update — zero allocation per tick
+    _nearby={}, _newList={}, _clean={},
+    getCol  = function() return ContainerColor end,
+    getObjs = function() return liveCont end,
+    getPart = function(obj)
+        local addr=obj.Address; local c=partCache[addr]
+        if c==false then return nil end; if c then return c end
+        local p=findBest(obj); partCache[addr]=p or false; return p
+    end,
+}
+
+local DroppedCfg = {
+    a2s={}, pool=POOLS.dropped, cache={{}}, on=false, withInv=false, isStatic=false,
+    max=BUDGETS.dropped, distSq=DROP_DIST_SQ,
+    _nearby={}, _newList={}, _clean={},
+    getCol  = function() return DroppedColor end,
+    getObjs = function() return liveDrop end,
+    getPart = function(obj)
+        if obj:FindFirstChildOfClass("Humanoid") then return nil end
+        return findBase(obj) or findDescBase(obj)
+    end,
+}
+
+local DeadCfg = {
+    a2s={}, pool=POOLS.dead, cache={{}}, on=false, withInv=false, isStatic=false,
+    max=BUDGETS.dead, distSq=DEAD_DIST_SQ,
+    _nearby={}, _newList={}, _clean={},
+    getCol  = function() return DeadBodyColor end,
+    getObjs = function() return liveDead end,
+    getPart = function(obj)
+        return obj:FindFirstChild("HumanoidRootPart") or findBase(obj) or findDescBase(obj)
+    end,
+}
+
+local ExitCfg = {
+    a2s={}, pool=POOLS.exit, cache={{}}, on=false, withInv=false, isStatic=true,
+    max=BUDGETS.exit, distSq=EXIT_DIST_SQ,
+    _nearby={}, _newList={}, _clean={},
+    getCol  = function() return ExitColor end,
+    getObjs = function() return liveExits end,
+    getPart = function(obj)
+        local hint=obj:FindFirstChild("Hint"); if not hint then return nil end
+        return hint:FindFirstChildOfClass("BasePart") or hint:FindFirstChildWhichIsA("BasePart")
+    end,
+}
+
+local BossCfg = {
+    a2s={}, pool=POOLS.boss, cache={{}}, on=false, withInv=false, isStatic=false,
+    max=BUDGETS.boss, distSq=BOSS_DIST_SQ,
+    _nearby={}, _newList={}, _clean={},
+    getCol  = function() return BossColor end,
+    getObjs = function() return liveBoss end,
+    getPart = function(obj)
+        return obj:FindFirstChild("HumanoidRootPart") or findBase(obj) or findDescBase(obj)
+    end,
+}
+
+local ALL = { ContainerCfg, DroppedCfg, DeadCfg, ExitCfg, BossCfg }
+
+-- ── SETTERS ───────────────────────────────────────────────────────────────────
+-- When toggling OFF: immediately hide all Drawing objects and clear the cfg state
+-- so labels vanish on the exact frame the toggle fires.
+-- When toggling ON: immediately run a scan so labels appear without waiting for
+-- the Heartbeat timer (which could be up to 2s away for containers).
+local function hideAll(cfg)
+    -- hide every slot in the pool regardless of a2s state
+    local pool = cfg.pool
+    for i = 1, #pool do
+        local slot = pool[i]
+        slot.lbl.Visible = false
+        slot.tr.Visible  = false
+        if slot.sub then for j = 1, MAX_SUB do slot.sub[j].Visible = false end end
+        if slot.addr then freeSlot(slot) end
+    end
+    tclear(cfg.a2s)
+    local c = cfg.cache[1]; for i = 1, #c do c[i] = nil end
+    local cl = cfg._clean;  for i = 1, #cl do cl[i] = nil end
+end
+
+local function setContainer(v)
+    ContainerESPEnabled = v; ContainerCfg.on = v
+    if not v then hideAll(ContainerCfg)
+    else tclear(posCache); doScan(ContainerCfg) end
+end
+local function setDropped(v)
+    DroppedESPEnabled = v; DroppedCfg.on = v
+    if not v then hideAll(DroppedCfg) else doScan(DroppedCfg) end
+end
+local function setDead(v)
+    DeadBodyESPEnabled = v; DeadCfg.on = v
+    if not v then hideAll(DeadCfg) else doScan(DeadCfg) end
+end
+local function setExit(v)
+    ExitESPEnabled = v; ExitCfg.on = v
+    if not v then hideAll(ExitCfg) else doScan(ExitCfg) end
+end
+local function setBoss(v)
+    BossESPEnabled = v; BossCfg.on = v
+    if not v then hideAll(BossCfg) else doScan(BossCfg) end
+end
+
+-- ── CHILDVM WATCHERS ──────────────────────────────────────────────────────────
+local function cvClaim(pool, a2s, addr, part, name, col)
+    if a2s[addr] then return end
+    local slot=claimSlot(pool,addr); if not slot then return end
+    slot.part=part; slot.name=name
+    slot.lbl.Color=col; slot.tr.Color=col
+    if slot.sub then for j=1,MAX_SUB do slot.sub[j].Color=col end end
+    a2s[addr]=slot
+end
+local function cvFree(a2s, addr)
+    if not addr then return end
+    freeSlot(a2s[addr]); a2s[addr]=nil; invCache[addr]=nil
+    partCache[addr]=nil; posCache[addr]=nil
+end
+
+setupCvWatchers = function()
+    if not CV then return end
+
+    -- Re-wire all live sets through CV now that it's loaded.
+    -- wireAll() ran at startup and fell back to safeConnect — CV polling is more
+    -- reliable in this executor so we set up the CV versions on top.
+    CV:OnChildAdded(WS_Containers, function(obj)
+        liveAdd(liveCont, liveContIdx, obj)
+        if not ContainerESPEnabled then return end
+        local addr=obj and obj.Address; if not addr then return end
+        local part=ContainerCfg.getPart(obj)
+        if part then
+            local slot=claimSlot(POOLS.container,addr)
+            if slot then
+                slot.part=part; slot.name=obj.Name
+                slot.lbl.Color=ContainerColor; slot.tr.Color=ContainerColor
+                if slot.sub then for j=1,MAX_SUB do slot.sub[j].Color=ContainerColor end end
+                ContainerCfg.a2s[addr]=slot
+            end
+        end
+    end)
+    CV:OnChildRemoved(WS_Containers, function(obj)
+        liveRem(liveCont, liveContIdx, obj)
+        cvFree(ContainerCfg.a2s, obj and obj.Address)
+    end)
+
+    CV:OnChildAdded(WS_Dropped, function(obj)
+        liveAdd(liveDrop, liveDropIdx, obj)
+        if obj:IsA("Model") and obj~=LocalPlayer.Character then
+            local hum=obj:FindFirstChildOfClass("Humanoid")
+            if hum then
+                local hp=0; pcall(function() hp=hum.Health end)
+                if hp<=0 then liveAdd(liveDead,liveDeadIdx,obj) end
+                -- watch health so corpses auto-enter dead set when they die
+                CV:OnPropertyChanged(hum, "Health", function(hp2)
+                    if (hp2 or 0) <= 0 then liveAdd(liveDead,liveDeadIdx,obj) end
+                end)
+            end
+        end
+        if not DroppedESPEnabled then return end
+        local addr=obj and obj.Address; if not addr then return end
+        if obj:FindFirstChildOfClass("Humanoid") or obj:FindFirstChildWhichIsA("Humanoid") then return end
+        local part=findBase(obj)
+        if part then
+            local slot=claimSlot(POOLS.dropped,addr)
+            if slot then
+                slot.part=part; slot.name=obj.Name
+                slot.lbl.Color=DroppedColor; slot.tr.Color=DroppedColor
+                -- CV position watcher for dropped items
+                slot.cvConn = CV:OnCFrameChanged(part, function(new)
+                    posCache[addr] = V3(new.X, new.Y, new.Z)
+                end)
+                DroppedCfg.a2s[addr]=slot
+            end
+        end
+    end)
+    CV:OnChildRemoved(WS_Dropped, function(obj)
+        liveRem(liveDrop,liveDropIdx,obj); liveRem(liveDead,liveDeadIdx,obj)
+        cvFree(DroppedCfg.a2s,obj and obj.Address)
+        cvFree(DeadCfg.a2s,obj and obj.Address)
+    end)
+
+    CV:OnChildAdded(WS_Exits, function(obj)
+        liveAdd(liveExits,liveExitsIdx,obj)
+        if not ExitESPEnabled then return end
+        local addr=obj and obj.Address; if not addr then return end
+        local hint=obj:FindFirstChild("Hint"); if not hint then return end
+        local part=hint:FindFirstChildOfClass("BasePart") or hint:FindFirstChildWhichIsA("BasePart")
+        if part then
+            local slot=claimSlot(POOLS.exit,addr)
+            if slot then
+                slot.part=part; slot.name=obj.Name
+                slot.lbl.Color=ExitColor; slot.tr.Color=ExitColor
+                ExitCfg.a2s[addr]=slot
+            end
+        end
+    end)
+    CV:OnChildRemoved(WS_Exits, function(obj)
+        liveRem(liveExits,liveExitsIdx,obj)
+        cvFree(ExitCfg.a2s,obj and obj.Address)
+    end)
+
+    -- Watch each AiZone for boss spawns and watch boss health to remove on death
+    for _,zone in ipairs(WS_AiZones:GetChildren()) do
+        -- watch existing bosses' health
+        for _,obj in ipairs(zone:GetChildren()) do
+            if obj:IsA("Model") then
+                local hum=obj:FindFirstChildOfClass("Humanoid")
+                if hum then
+                    CV:OnPropertyChanged(hum, "Health", function(hp)
+                        if (hp or 0) <= 0 then
+                            liveRem(liveBoss, liveBossIdx, obj)
+                            cvFree(BossCfg.a2s, obj.Address)
+                        end
+                    end)
+                end
+            end
+        end
+        CV:OnChildAdded(zone, function(obj)
+            if not obj:IsA("Model") then return end
+            local hum=obj:FindFirstChildOfClass("Humanoid") or obj:FindFirstChildWhichIsA("Humanoid")
+            if hum then
+                liveAdd(liveBoss, liveBossIdx, obj)
+                -- watch health to remove when dead
+                CV:OnPropertyChanged(hum, "Health", function(hp)
+                    if (hp or 0) <= 0 then
+                        liveRem(liveBoss, liveBossIdx, obj)
+                        cvFree(BossCfg.a2s, obj.Address)
+                    end
+                end)
+            end
+        end)
+        CV:OnChildRemoved(zone, function(obj)
+            liveRem(liveBoss, liveBossIdx, obj)
+            cvFree(BossCfg.a2s, obj and obj.Address)
+        end)
+    end
+end
+
+-- ── INIT ──────────────────────────────────────────────────────────────────────
+WS_Containers = workspace:WaitForChild("Containers")
+WS_Dropped    = workspace:WaitForChild("DroppedItems")
+WS_Exits      = workspace:WaitForChild("NoCollision"):WaitForChild("ExitLocations")
+WS_AiZones    = workspace:WaitForChild("AiZones")
+
+wireAll()
+
+_RenderCam = workspace.CurrentCamera
+StaticCam  = _RenderCam
+
+-- ── SCAN LOOP (Heartbeat — physics-synced, consistent timing) ─────────────────
+local _scanAccum = 0
+local SCAN_INTERVALS = { 2.0, 0.5, 0.5, 1.0, 0.3 }
+local _scanTimers   = { 0,   0,   0,   0,   0   }
+local _scanCfgs     = { ContainerCfg, DroppedCfg, DeadCfg, ExitCfg, BossCfg }
+local _scanEnabled  = {
+    function() return ContainerESPEnabled end,
+    function() return DroppedESPEnabled   end,
+    function() return DeadBodyESPEnabled  end,
+    function() return ExitESPEnabled      end,
+    function() return BossESPEnabled      end,
+}
+local _scanDistSqs  = {
+    function() ContainerCfg.distSq=MAX_DIST_SQ  end,
+    function() DroppedCfg.distSq=DROP_DIST_SQ   end,
+    function() DeadCfg.distSq=DEAD_DIST_SQ      end,
+    function() ExitCfg.distSq=EXIT_DIST_SQ      end,
+    function() BossCfg.distSq=BOSS_DIST_SQ      end,
+}
+
+RunService.Heartbeat:Connect(function(dt)
+    for i = 1, 5 do
+        _scanTimers[i] = _scanTimers[i] + dt
+        if _scanTimers[i] >= SCAN_INTERVALS[i] then
+            _scanTimers[i] = 0
+            _scanDistSqs[i]()
+            if _scanEnabled[i]() then doScan(_scanCfgs[i]) end
+        end
+    end
+end)
+
+-- ── RENDER LOOP (RenderStepped — fires once per frame, perfectly in sync) ─────
+-- This is the fix for label jitter: RenderStepped is called by the engine
+-- immediately before each frame is rendered, so Drawing updates always happen
+-- at exactly the right moment.
+local OriginalFOV = 90
+
+RunService.RenderStepped:Connect(function()
+    local cam = workspace.CurrentCamera
+    if cam then _RenderCam=cam; StaticCam=cam end
+
+    if cam then
+        if ZoomEnabled then
+            if cam.FieldOfView~=10 then cam.FieldOfView=10 end
+        elseif CameraFOVEnabled then
+            if cam.FieldOfView~=FOVAmount then cam.FieldOfView=FOVAmount end
+        end
+    end
+
+    local char = LocalPlayer.Character
+    local hrp  = char and char:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        _frameMyPos=hrp.Position; _frameHRPValid=true
+    else
+        _frameHRPValid=false
+    end
+
+    if not _RenderCam then return end
+
+    if ContainerESPEnabled then doUpdate(ContainerCfg) end
+    if DroppedESPEnabled   then doUpdate(DroppedCfg)   end
+    if DeadBodyESPEnabled  then doUpdate(DeadCfg)      end
+    if ExitESPEnabled      then doUpdate(ExitCfg)      end
+    if BossESPEnabled      then doUpdate(BossCfg)      end
+end)
+
+-- ── UI ────────────────────────────────────────────────────────────────────────
+UI.AddTab("Project Delta", function(tab)
+
+    -- Containers
+    local ContSec = tab:Section("Containers", "Left")
+    ContSec:Toggle("container_esp", "Container ESP", false, function(v)
+        setContainer(v); if v then doScan(ContainerCfg) end
+    end)
+    local kb_cont = ContSec:Keybind("kb_container_esp", 0, "toggle")
+    kb_cont:AddToHotkey("Container ESP", "container_esp")
+    ContSec:Button("Reset", 60, 20, function() kb_cont:SetKey(0) end)
+    ContSec:ColorPicker("container_color", 1, 1, 1, 1, function(c)
+        ContainerColor=c
+        for _,s in pairs(ContainerCfg.a2s) do
+            s.lbl.Color=c; s.tr.Color=c
+            if s.sub then for j=1,MAX_SUB do s.sub[j].Color=c end end
+        end
+    end)
+    ContSec:Toggle("show_items",    "Show Items",    false, function(v) ShowItems=v    end)
+    ContSec:Toggle("show_distance", "Show Distance", false, function(v) ShowDistance=v end)
+    ContSec:SliderInt("container_dist", "Max Distance", 50, 300, 150, function(v) MAX_DIST_SQ=v*v end)
+
+    -- Dropped Items
+    local DropSec = tab:Section("Dropped Items", "Left")
+    DropSec:Toggle("dropped_esp", "Dropped Item ESP", false, function(v) setDropped(v) end)
+    local kb_drop = DropSec:Keybind("kb_dropped_esp", 0, "toggle")
+    kb_drop:AddToHotkey("Dropped Item ESP", "dropped_esp")
+    DropSec:Button("Reset", 60, 20, function() kb_drop:SetKey(0) end)
+    DropSec:ColorPicker("dropped_color", 1, 0.78, 0.31, 1, function(c)
+        DroppedColor=c
+        for _,s in pairs(DroppedCfg.a2s) do s.lbl.Color=c; s.tr.Color=c end
+    end)
+    DropSec:SliderInt("dropped_dist", "Max Distance", 50, 300, 150, function(v) DROP_DIST_SQ=v*v end)
+
+    -- Traps
+    local TrapSec = tab:Section("Traps", "Left")
+    TrapSec:Toggle("trap_esp", "Trap ESP", false, function(v) TrapESPEnabled=v end)
+    local kb_trap = TrapSec:Keybind("kb_trap_esp", 0, "toggle")
+    kb_trap:AddToHotkey("Trap ESP", "trap_esp")
+    TrapSec:Button("Reset", 60, 20, function() kb_trap:SetKey(0) end)
+    TrapSec:ColorPicker("trap_color", 1, 0.19, 1, 1, function(c) TrapColor=c end)
+    TrapSec:SliderInt("trap_dist", "Max Distance", 50, 1000, 500, function(v) TRAP_DIST_SQ=v*v end)
+
+    -- Camera
+    local CamSec = tab:Section("Camera", "Left")
+    CamSec:Toggle("cam_fov_on", "Custom FOV", false, function(v)
+        CameraFOVEnabled=v
+        if StaticCam then StaticCam.FieldOfView=v and FOVAmount or 90 end
+    end)
+    local kb_fov = CamSec:Keybind("kb_cam_fov", 0, "toggle")
+    kb_fov:AddToHotkey("Custom FOV", "cam_fov_on")
+    CamSec:Button("Reset", 60, 20, function() kb_fov:SetKey(0) end)
+    CamSec:SliderInt("cam_fov_amt", "FOV Amount", 60, 120, 90, function(v)
+        FOVAmount=tonumber(v)
+        if StaticCam then StaticCam.FieldOfView=FOVAmount end
+    end)
+    CamSec:Toggle("zoom_on", "Zoom", false, function(v)
+        ZoomEnabled=v
+        if StaticCam then
+            if v then StaticCam.FieldOfView=10
+            elseif CameraFOVEnabled then StaticCam.FieldOfView=FOVAmount
+            else StaticCam.FieldOfView=90 end
+        end
+    end)
+    local kb_zoom = CamSec:Keybind("kb_zoom", 0, "toggle")
+    kb_zoom:AddToHotkey("Zoom", "zoom_on")
+    CamSec:Button("Reset", 60, 20, function() kb_zoom:SetKey(0) end)
+
+    -- Appearance
+    local AppSec = tab:Section("Appearance", "Left")
+    AppSec:Combo("esp_font", "ESP Font", {"System","SystemBold"}, 0, function(_, v) setEspFont(v) end)
+    AppSec:Toggle("line_tracer", "Line Tracer", false, function(v)
+        LineTracerEnabled=v
+        if not v then
+            for _,cfg in ipairs(ALL) do
+                for _,s in pairs(cfg.a2s) do s.tr.Visible=false end
+            end
+        end
+    end)
+
+    -- Players
+    local PlySec = tab:Section("Players", "Right")
+    PlySec:Toggle("player_inv_esp", "Player Inventory Checker", false, function(v)
+        PlayerInventoryESPEnabled=v
+        if v then INV_S.cursor=1; buildList() else hideList(); hideInv() end
+    end)
+    local kb_inv = PlySec:Keybind("kb_player_inv_esp", 0, "toggle")
+    kb_inv:AddToHotkey("Player Inventory Checker", "player_inv_esp")
+    PlySec:Button("Reset", 60, 20, function() kb_inv:SetKey(0) end)
+    PlySec:ColorPicker("player_inv_color", 1, 1, 1, 1, function(c)
+        PlayerInvColor=c; C_ACCENT=c; lTit.Color=c; iTit.Color=c
+        for i=1,MAX_P do
+            if pTx[i]  then pTx[i].Color  = INV_S.cursor==i and c or C_TEXT end
+            if pCur[i] then pCur[i].Color = c end
+        end
+    end)
+
+    -- Dead Bodies
+    local DeadSec = tab:Section("Dead Bodies", "Right")
+    DeadSec:Toggle("dead_body_esp", "Dead Body ESP", false, function(v) setDead(v) end)
+    local kb_dead = DeadSec:Keybind("kb_dead_body_esp", 0, "toggle")
+    kb_dead:AddToHotkey("Dead Body ESP", "dead_body_esp")
+    DeadSec:Button("Reset", 60, 20, function() kb_dead:SetKey(0) end)
+    DeadSec:ColorPicker("dead_body_color", 1, 0.31, 0.31, 1, function(c)
+        DeadBodyColor=c
+        for _,s in pairs(DeadCfg.a2s) do s.lbl.Color=c; s.tr.Color=c end
+    end)
+    DeadSec:SliderInt("dead_body_dist", "Max Distance", 50, 300, 150, function(v) DEAD_DIST_SQ=v*v end)
+
+    -- Exits
+    local ExitSec = tab:Section("Exits", "Right")
+    ExitSec:Toggle("exit_esp", "Exit ESP", false, function(v) setExit(v) end)
+    local kb_exit = ExitSec:Keybind("kb_exit_esp", 0, "toggle")
+    kb_exit:AddToHotkey("Exit ESP", "exit_esp")
+    ExitSec:Button("Reset", 60, 20, function() kb_exit:SetKey(0) end)
+    ExitSec:ColorPicker("exit_color", 1, 0.31, 0.31, 1, function(c)
+        ExitColor=c
+        for _,s in pairs(ExitCfg.a2s) do s.lbl.Color=c; s.tr.Color=c end
+    end)
+    ExitSec:SliderInt("exit_dist", "Max Distance", 50, 1000, 500, function(v) EXIT_DIST_SQ=v*v end)
+
+    -- Bosses
+    local BossSec = tab:Section("Bosses", "Right")
+    BossSec:Toggle("boss_esp", "Boss ESP", false, function(v) setBoss(v) end)
+    local kb_boss = BossSec:Keybind("kb_boss_esp", 0, "toggle")
+    kb_boss:AddToHotkey("Boss ESP", "boss_esp")
+    BossSec:Button("Reset", 60, 20, function() kb_boss:SetKey(0) end)
+    BossSec:ColorPicker("boss_color", 1, 0.64, 0, 1, function(c)
+        BossColor=c
+        for _,s in pairs(BossCfg.a2s) do s.lbl.Color=c; s.tr.Color=c end
+    end)
+    BossSec:SliderInt("boss_dist", "Max Distance", 50, 1000, 500, function(v) BOSS_DIST_SQ=v*v end)
+
+    -- Weapon Recoil
+    -- RecoilPattern has NumberValue children named "X" (horizontal spread) and
+    -- "Y" (vertical kick). Sliders control each axis independently 0-100 mapped
+    -- to 0.0-0.3 (the game's native range). Originals saved per weapon name.
+    local recoilEnabled   = false
+    local recoilX         = 0.0
+    local recoilY         = 0.0
+    local recoilOriginals = {}   -- "weaponName_folderName" -> { [addr] = originalValue }
+    local _recoilLast     = nil
+
+    local function getEquippedWeapon()
+        local ok, name = pcall(function()
+            return game.ReplicatedStorage
+                :FindFirstChild("Players")
+                :FindFirstChild(LocalPlayer.Name)
+                :FindFirstChild("Status")
+                :FindFirstChild("GameplayVariables")
+                :FindFirstChild("EquippedTool").Value
+        end)
+        return (ok and name and name ~= "") and name or nil
+    end
+
+    local VALUE_OFFSET = 0xD0
+
+    -- mirrors the working script: memory_write("double", inner.Address + VALUE_OFFSET, val)
+    local function writeAxis(axis, value)
+        pcall(function()
+            memory_write("double", axis.Address + VALUE_OFFSET, value)
+        end)
+    end
+
+    local function readAxis(axis)
+        -- read via Lua property (reliable for reading originals)
+        local ok, v = pcall(function() return axis.Value end)
+        return ok and type(v) == "number" and v or nil
+    end
+
+    -- iterates BoolValue folders inside a recoil folder and calls fn(axis)
+    -- structure: RecoilPattern > BoolValue > NumberValue (x, y)
+    local function forEachAxis(pattern, fn)
+        if not pattern then return end
+        for _, shot in ipairs(pattern:GetChildren()) do
+            if shot.ClassName == "BoolValue" then
+                for _, axis in ipairs(shot:GetChildren()) do
+                    if axis.ClassName == "NumberValue" then
+                        fn(axis)
+                    end
+                end
+            end
+        end
+    end
+
+    local RECOIL_FOLDERS = { "RecoilPattern", "RecoilPattern2" }
+
+    local function applyRecoil(weaponName)
+        if not recoilEnabled or not weaponName then return end
+        local wFolder = game.ReplicatedStorage.RangedWeapons:FindFirstChild(weaponName)
+        if not wFolder then return end
+
+        for _, folderName in ipairs(RECOIL_FOLDERS) do
+            local pattern = wFolder:FindFirstChild(folderName)
+            if not pattern then continue end
+
+            local key = weaponName .. "_" .. folderName
+
+            -- save originals once using Lua property read (safe, no memory needed)
+            if not recoilOriginals[key] then
+                local orig = {}
+                forEachAxis(pattern, function(axis)
+                    local v = readAxis(axis)
+                    if v ~= nil then orig[axis.Name] = v end
+                end)
+                recoilOriginals[key] = orig
+            end
+
+            -- write via memory_write — bypasses server replication
+            forEachAxis(pattern, function(axis)
+                local n = axis.Name
+                if n == "x" then
+                    writeAxis(axis, recoilX)
+                elseif n == "y" then
+                    writeAxis(axis, recoilY)
+                end
+            end)
+        end
+    end
+
+    local function restoreRecoil(weaponName)
+        if not weaponName then return end
+        local wFolder = game.ReplicatedStorage.RangedWeapons:FindFirstChild(weaponName)
+        if not wFolder then return end
+
+        for _, folderName in ipairs(RECOIL_FOLDERS) do
+            local pattern = wFolder:FindFirstChild(folderName)
+            if not pattern then continue end
+
+            local key = weaponName .. "_" .. folderName
+            local orig = recoilOriginals[key]
+            if not orig then continue end
+
+            forEachAxis(pattern, function(axis)
+                local saved = orig[axis.Name]
+                if saved ~= nil then writeAxis(axis, saved) end
+            end)
+            recoilOriginals[key] = nil
+        end
+    end
+
+    local RecoilSec = tab:Section("Weapon Recoil", "Right")
+
+    RecoilSec:Toggle("recoil_on", "No Recoil", false, function(v)
+        recoilEnabled = v
+        if v then
+            local cur = getEquippedWeapon()
+            _recoilLast = cur
+            applyRecoil(cur)
+        else
+            for wName in pairs(recoilOriginals) do
+                restoreRecoil(wName)
+            end
+            _recoilLast = nil
+        end
+    end)
+
+    RecoilSec:SliderInt("recoil_x", "Horizontal Recoil (X)", 0, 100, 0, function(v)
+        recoilX = v / 100 * 0.3
+        if recoilEnabled then applyRecoil(getEquippedWeapon()) end
+    end)
+
+    RecoilSec:SliderInt("recoil_y", "Vertical Recoil (Y)", 0, 100, 0, function(v)
+        recoilY = v / 100 * 0.3
+        if recoilEnabled then applyRecoil(getEquippedWeapon()) end
+    end)
+
+    -- re-apply when weapon is swapped — throttled poll, not every Heartbeat frame
+    task.spawn(function()
+        while true do
+            task.wait(0.25)
+            if not recoilEnabled then continue end
+            local cur = getEquippedWeapon()
+            if cur ~= _recoilLast then
+                _recoilLast = cur
+                applyRecoil(cur)
+            end
+        end
+    end)
+
+        -- Optimizations
+    local OptSec = tab:Section("Optimizations", "Right")
+    OptSec:Toggle("fflags_enabled", "Network FFlags", false, function(v)
+        FFlagActive=v; if v then ApplyFFlags() else RevertFFlags() end
+    end)
+    OptSec:Toggle("fps_boost", "FPS Boost", false, function(v)
+        FPSBoostActive=v; if v then ApplyFPSBoost() else RevertFPSBoost() end
+    end)
+    OptSec:Toggle("no_fog", "No Fog", false, function(v)
+        NoFogEnabled=v
+        pcall(function()
+            if v then
+                game.Lighting.Atmosphere.Haze=0
+                game.Lighting.Atmosphere.Density=0
+            else
+                game.Lighting.Atmosphere.Haze=1
+                game.Lighting.Atmosphere.Density=0.3
+            end
+        end)
+    end)
+    OptSec:Toggle("full_bright", "Full Bright", false, function(v)
+        FullBrightEnabled=v
+        pcall(function()
+            if v then
+                game.Lighting.Brightness=10
+                game.Lighting.Ambient=Color3.new(1,1,1)
+                game.Lighting.OutdoorAmbient=Color3.new(1,1,1)
+            else
+                game.Lighting.Brightness=2
+                game.Lighting.Ambient=Color3.fromRGB(25,25,25)
+                game.Lighting.OutdoorAmbient=Color3.fromRGB(128,128,128)
+            end
+        end)
+    end)
+
+    -- Config
+    local CfgSec = tab:Section("Config", "Right")
+
+    local function buildCfg()
+        return {
+            ContainerESP=ContainerESPEnabled, DroppedESP=DroppedESPEnabled,
+            PlayerInvESP=PlayerInventoryESPEnabled, DeadBodyESP=DeadBodyESPEnabled,
+            ExitESP=ExitESPEnabled, TrapESP=TrapESPEnabled, BossESP=BossESPEnabled,
+            ShowDistance=ShowDistance, ShowItems=ShowItems,
+            CameraFOV=CameraFOVEnabled, FOVAmount=FOVAmount, Zoom=ZoomEnabled,
+            LineTracer=LineTracerEnabled, NoFog=NoFogEnabled, FullBright=FullBrightEnabled,
+            MaxDistSq=MAX_DIST_SQ, DroppedDistSq=DROP_DIST_SQ,
+            DeadBodyDistSq=DEAD_DIST_SQ, ExitDistSq=EXIT_DIST_SQ,
+            TrapDistSq=TRAP_DIST_SQ, BossDistSq=BOSS_DIST_SQ,
+            NetworkFFlags=FFlagActive, FPSBoost=FPSBoostActive,
+            CCR=ContainerColor.R, CCG=ContainerColor.G, CCB=ContainerColor.B,
+            DCR=DroppedColor.R,   DCG=DroppedColor.G,   DCB=DroppedColor.B,
+            PCR=PlayerInvColor.R, PCG=PlayerInvColor.G, PCB=PlayerInvColor.B,
+            BCR=DeadBodyColor.R,  BCG=DeadBodyColor.G,  BCB=DeadBodyColor.B,
+            ECR=ExitColor.R,      ECG=ExitColor.G,      ECB=ExitColor.B,
+            TCR=TrapColor.R,      TCG=TrapColor.G,      TCB=TrapColor.B,
+            BSCR=BossColor.R,     BSCG=BossColor.G,     BSCB=BossColor.B,
+            KB_Container=kb_cont:GetKey(), KB_Dropped=kb_drop:GetKey(),
+            KB_CamFOV=kb_fov:GetKey(),     KB_Zoom=kb_zoom:GetKey(),
+            KB_PlayerInv=kb_inv:GetKey(),  KB_DeadBody=kb_dead:GetKey(),
+            KB_Exit=kb_exit:GetKey(),      KB_Trap=kb_trap:GetKey(),
+            KB_Boss=kb_boss:GetKey(),
+        }
+    end
+
+    CfgSec:Button("Save Config", function()
+        pcall(function()
+            writefile("matcha_config.json", HttpService:JSONEncode(buildCfg()))
+        end)
+    end)
+
+    CfgSec:Button("Load Config", function()
+        if not isfile("matcha_config.json") then return end
+        local ok, d = pcall(function() return HttpService:JSONDecode(readfile("matcha_config.json")) end)
+        if not ok or not d then return end
+
+        setContainer(d.ContainerESP  or false)
+        setDropped(d.DroppedESP      or false)
+        setDead(d.DeadBodyESP        or false)
+        setExit(d.ExitESP            or false)
+        TrapESPEnabled    = d.TrapESP       or false
+        setBoss(d.BossESP            or false)
+        ShowDistance      = d.ShowDistance  or false
+        ShowItems         = d.ShowItems     or false
+        CameraFOVEnabled  = d.CameraFOV     or false
+        FOVAmount         = d.FOVAmount     or 90
+        ZoomEnabled       = d.Zoom          or false
+        FFlagActive       = d.NetworkFFlags or false
+        FPSBoostActive    = d.FPSBoost      or false
+        LineTracerEnabled = d.LineTracer    or false
+        NoFogEnabled      = d.NoFog         or false
+        FullBrightEnabled = d.FullBright    or false
+
+        MAX_DIST_SQ  = d.MaxDistSq      or 22500
+        DROP_DIST_SQ = d.DroppedDistSq  or 22500
+        DEAD_DIST_SQ = d.DeadBodyDistSq or 22500
+        EXIT_DIST_SQ = d.ExitDistSq     or 250000
+        TRAP_DIST_SQ = d.TrapDistSq     or 250000
+        BOSS_DIST_SQ = d.BossDistSq     or 250000
+
+        if d.CCR  then ContainerColor=Color3.new(d.CCR,  d.CCG,  d.CCB)  end
+        if d.DCR  then DroppedColor  =Color3.new(d.DCR,  d.DCG,  d.DCB)  end
+        if d.BCR  then DeadBodyColor =Color3.new(d.BCR,  d.BCG,  d.BCB)  end
+        if d.ECR  then ExitColor     =Color3.new(d.ECR,  d.ECG,  d.ECB)  end
+        if d.TCR  then TrapColor     =Color3.new(d.TCR,  d.TCG,  d.TCB)  end
+        if d.BSCR then BossColor     =Color3.new(d.BSCR, d.BSCG, d.BSCB) end
+        if d.PCR  then
+            PlayerInvColor=Color3.new(d.PCR,d.PCG,d.PCB)
+            C_ACCENT=PlayerInvColor; lTit.Color=C_ACCENT; iTit.Color=C_ACCENT
+            for i=1,MAX_P do
+                if pTx[i]  then pTx[i].Color  = INV_S.cursor==i and C_ACCENT or C_TEXT end
+                if pCur[i] then pCur[i].Color = C_ACCENT end
+            end
+        end
+
+        if d.KB_Container then kb_cont:SetKey(d.KB_Container) end
+        if d.KB_Dropped   then kb_drop:SetKey(d.KB_Dropped)   end
+        if d.KB_CamFOV    then kb_fov:SetKey(d.KB_CamFOV)     end
+        if d.KB_Zoom      then kb_zoom:SetKey(d.KB_Zoom)       end
+        if d.KB_PlayerInv then kb_inv:SetKey(d.KB_PlayerInv)   end
+        if d.KB_DeadBody  then kb_dead:SetKey(d.KB_DeadBody)   end
+        if d.KB_Exit      then kb_exit:SetKey(d.KB_Exit)       end
+        if d.KB_Trap      then kb_trap:SetKey(d.KB_Trap)       end
+        if d.KB_Boss      then kb_boss:SetKey(d.KB_Boss)       end
+
+        local prevInv = PlayerInventoryESPEnabled
+        PlayerInventoryESPEnabled = d.PlayerInvESP or false
+        if PlayerInventoryESPEnabled and not prevInv then INV_S.cursor=1; buildList()
+        elseif not PlayerInventoryESPEnabled and prevInv then hideList(); hideInv() end
+
+        if FFlagActive    then ApplyFFlags()   else RevertFFlags()   end
+        if FPSBoostActive then ApplyFPSBoost() else RevertFPSBoost() end
+        if ContainerESPEnabled then doScan(ContainerCfg) end
+
+        local function s2d(sq) return mfloor(sq^0.5) end
+        UI.SetValue("container_esp",  ContainerESPEnabled)
+        UI.SetValue("show_items",     ShowItems)
+        UI.SetValue("show_distance",  ShowDistance)
+        UI.SetValue("container_dist", s2d(MAX_DIST_SQ))
+        UI.SetValue("dropped_esp",    DroppedESPEnabled)
+        UI.SetValue("dropped_dist",   s2d(DROP_DIST_SQ))
+        UI.SetValue("player_inv_esp", PlayerInventoryESPEnabled)
+        UI.SetValue("dead_body_esp",  DeadBodyESPEnabled)
+        UI.SetValue("dead_body_dist", s2d(DEAD_DIST_SQ))
+        UI.SetValue("exit_esp",       ExitESPEnabled)
+        UI.SetValue("exit_dist",      s2d(EXIT_DIST_SQ))
+        UI.SetValue("trap_esp",       TrapESPEnabled)
+        UI.SetValue("trap_dist",      s2d(TRAP_DIST_SQ))
+        UI.SetValue("boss_esp",       BossESPEnabled)
+        UI.SetValue("boss_dist",      s2d(BOSS_DIST_SQ))
+        UI.SetValue("cam_fov_on",     CameraFOVEnabled)
+        UI.SetValue("cam_fov_amt",    FOVAmount)
+        UI.SetValue("zoom_on",        ZoomEnabled)
+        UI.SetValue("fflags_enabled", FFlagActive)
+        UI.SetValue("fps_boost",      FPSBoostActive)
+        UI.SetValue("no_fog",         NoFogEnabled)
+        UI.SetValue("full_bright",    FullBrightEnabled)
+        UI.SetValue("line_tracer",    LineTracerEnabled)
+    end)
+
+    -- ── KEYBIND LOOP ──────────────────────────────────────────────────────────
+    local kbList = {
+        { kb=kb_cont,  id="container_esp",
+          get=function() return ContainerESPEnabled end,
+          set=function(v) setContainer(v); if v then doScan(ContainerCfg) end end },
+        { kb=kb_drop,  id="dropped_esp",
+          get=function() return DroppedESPEnabled end,  set=setDropped },
+        { kb=kb_trap,  id="trap_esp",
+          get=function() return TrapESPEnabled end,     set=function(v) TrapESPEnabled=v end },
+        { kb=kb_dead,  id="dead_body_esp",
+          get=function() return DeadBodyESPEnabled end, set=setDead },
+        { kb=kb_exit,  id="exit_esp",
+          get=function() return ExitESPEnabled end,     set=setExit },
+        { kb=kb_boss,  id="boss_esp",
+          get=function() return BossESPEnabled end,     set=setBoss },
+        { kb=kb_fov,   id="cam_fov_on",
+          get=function() return CameraFOVEnabled end,
+          set=function(v)
+            CameraFOVEnabled=v
+            if StaticCam then StaticCam.FieldOfView=v and FOVAmount or 90 end
+          end },
+        { kb=kb_zoom,  id="zoom_on",
+          get=function() return ZoomEnabled end,
+          set=function(v)
+            ZoomEnabled=v
+            if StaticCam then
+                if v then StaticCam.FieldOfView=10
+                elseif CameraFOVEnabled then StaticCam.FieldOfView=FOVAmount
+                else StaticCam.FieldOfView=90 end
+            end
+          end },
+        { kb=kb_inv,   id="player_inv_esp",
+          get=function() return PlayerInventoryESPEnabled end,
+          set=function(v)
+            PlayerInventoryESPEnabled=v
+            if v then INV_S.cursor=1; buildList() else hideList(); hideInv() end
+          end },
+    }
+
+    local active = {}
+    local function rebuildActive()
+        tclear(active)
+        for _,b in ipairs(kbList) do
+            if b.kb:GetKey()~=0 then active[#active+1]=b end
+        end
+    end
+    rebuildActive()
+
+    task.spawn(function()
+        local cd = 0
+        while true do
+            task.wait(0.1)
+            cd=cd-1; if cd<=0 then rebuildActive(); cd=20 end
+            local n=#active; if n==0 then continue end
+            for i=1,n do
+                local b=active[i]; local v=b.kb:IsEnabled()
+                if v~=b.get() then b.set(v); UI.SetValue(b.id,v) end
+            end
+        end
+    end)
+end)
